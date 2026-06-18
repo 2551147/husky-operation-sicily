@@ -1,0 +1,4017 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Operation Husky - Sicily 1943</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;font-family:"Microsoft YaHei",sans-serif;overflow:hidden;height:100vh;color:#ddd}
+#app{display:grid;grid-template-columns:240px 1fr;grid-template-rows:44px 1fr 56px;height:100vh}
+#toolbar{grid-column:1/-1;grid-row:1;background:#16213e;display:flex;align-items:center;gap:12px;padding:0 12px;border-bottom:2px solid #c0392b;z-index:10}
+#toolbar h1{font-size:15px;color:#e74c3c;white-space:nowrap}
+#toolbar .info{font-size:11px;color:#aaa}
+#toolbar .player-badge{padding:3px 12px;border-radius:3px;font-size:13px;font-weight:bold}
+#toolbar .phase-indicator{padding:3px 8px;border-radius:3px;font-size:11px;font-weight:bold;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+.badge-uk{background:#1a5276;color:#85c1e9}
+.badge-de{background:#641e16;color:#f1948a}
+#sidebar{grid-column:1;grid-row:2;background:#1b1b2f;overflow-y:auto;padding:10px;border-right:1px solid #333;display:flex;flex-direction:column;gap:8px}
+#sidebar h3{font-size:13px;color:#e74c3c;border-bottom:1px solid #333;padding-bottom:4px;margin-bottom:2px}
+#sidebar .unit-card{background:#222;border-radius:6px;padding:7px 9px;cursor:pointer;border:2px solid transparent;font-size:11px;transition:all 0.15s}
+#sidebar .unit-card:hover{border-color:#555}
+#sidebar .unit-card.selected{border-color:#e74c3c;background:#2a1a1a}
+#sidebar .unit-card .name{font-weight:bold;color:#eee;font-size:12px}
+#sidebar .unit-card .stats{color:#aaa;font-size:10px;margin-top:2px}
+#sidebar .bar-wrap{background:#333;height:5px;border-radius:3px;margin-top:2px;overflow:hidden}
+#sidebar .bar-fill{height:100%;border-radius:3px;transition:width 0.3s}
+.bar-equip{background:#27ae60}.bar-org{background:#2980b9}
+#sidebar .supply-info{font-size:10px;color:#888;padding:4px 6px;background:#1a1a2a;border-radius:3px}
+#canvas-wrap{grid-column:2;grid-row:2;position:relative;overflow:hidden;cursor:grab;background:#0a0a1a}
+#canvas-wrap.dragging{cursor:grabbing}
+#canvas-wrap canvas{display:block}
+#bottombar{grid-column:1/-1;grid-row:3;background:#16213e;display:flex;align-items:center;gap:10px;padding:0 12px;border-top:2px solid #c0392b}
+#bottombar button{padding:6px 16px;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold;transition:filter 0.15s}
+#bottombar button:hover{filter:brightness(1.2)}
+#bottombar button:disabled{opacity:0.4;cursor:not-allowed;filter:none}
+.btn-primary{background:#c0392b;color:#fff}
+.btn-secondary{background:#2c3e50;color:#ccc}
+.btn-green{background:#27ae60;color:#fff}
+.btn-gold{background:#d4a017;color:#000}
+#log{flex:1;font-size:11px;color:#888;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#tooltip{position:fixed;background:rgba(0,0,0,0.9);color:#fff;padding:6px 10px;border-radius:4px;font-size:11px;pointer-events:none;z-index:100;display:none;max-width:280px;line-height:1.4}
+#modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);z-index:200;display:flex;align-items:center;justify-content:center}
+#modal .box{background:#1b1b2f;padding:24px 32px;border-radius:12px;text-align:center;border:2px solid #c0392b;min-width:300px}
+#modal h2{color:#e74c3c;margin-bottom:8px}
+#modal button{margin:8px 6px;padding:8px 20px;border:none;border-radius:4px;cursor:pointer;font-size:14px;font-weight:bold}
+#modal .reinforce-btn{padding:6px 14px;font-size:12px;margin:3px}
+#transition-screen{position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:300;display:none;align-items:center;justify-content:center;flex-direction:column}
+#transition-screen .msg{font-size:28px;color:#fff;margin-bottom:12px}
+#transition-screen .sub{font-size:14px;color:#aaa}
+
+#stats-screen{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.92);z-index:350;display:none;align-items:center;justify-content:center;flex-direction:column;overflow-y:auto;padding:20px}
+#stats-screen .stats-card{background:#151525;border:2px solid #555;border-radius:14px;padding:24px 28px;max-width:700px;width:90%;color:#ddd;font-size:13px;line-height:1.7}
+#stats-screen h2{text-align:center;color:#f1c40f;margin:0 0 16px 0;font-size:20px}
+#stats-screen .stats-cols{display:flex;gap:20px}
+#stats-screen .stats-col{flex:1;min-width:0}
+#stats-screen .stats-col h3{text-align:center;margin:0 0 8px 0;font-size:15px;padding-bottom:6px;border-bottom:2px solid #444}
+#stats-screen .stats-col.uk h3{color:#85c1e9;border-color:#2980b9}
+#stats-screen .stats-col.de h3{color:#f1948a;border-color:#c0392b}
+#stats-screen .stat-block{margin-bottom:10px}
+#stats-screen .stat-block .label{font-weight:bold;font-size:11px;color:#999;margin-bottom:2px}
+#stats-screen .stat-block .item{font-size:12px;padding:2px 0;border-bottom:1px dotted #2a2a3a}
+#stats-screen .stat-block .item:last-child{border-bottom:none}
+#stats-screen .stat-empty{color:#555;font-style:italic;font-size:12px}
+#stats-screen .btn-continue{display:block;margin:18px auto 0;padding:8px 36px;background:#2c3e50;color:#fff;border:1px solid #5a7a9a;border-radius:6px;cursor:pointer;font-size:15px}
+#stats-screen .btn-continue:hover{background:#3a5068}
+
+#action-panel{position:fixed;background:#1a1a2e;border:2px solid #555;border-radius:10px;z-index:200;display:none;width:fit-content;max-width:340px;box-shadow:0 4px 24px rgba(0,0,0,0.6);user-select:none}
+#action-panel .ap-header{cursor:move;padding:6px 12px;background:#222240;border-radius:8px 8px 0 0;font-size:12px;color:#ddd;display:flex;justify-content:space-between;align-items:center}
+#action-panel .ap-header .ap-close{cursor:pointer;color:#888;font-size:16px;line-height:1;padding:0 4px}
+#action-panel .ap-header .ap-close:hover{color:#e74c3c}
+#action-panel .ap-body{padding:8px 12px 10px}
+#action-panel .ap-unit{font-size:11px;color:#ccc;margin-bottom:6px;line-height:1.5}
+#action-panel .ap-unit .name{font-size:13px;font-weight:bold;color:#fff}
+#action-panel .ap-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;margin-bottom:4px}
+#action-panel .ap-actions.row2{grid-template-columns:1fr 1fr}
+#action-panel .ap-btn{padding:5px 6px;background:#222;color:#ddd;border:2px solid #444;border-radius:4px;cursor:pointer;font-size:11px;text-align:center}
+#action-panel .ap-btn:hover{background:#333}
+#action-panel .ap-btn.active{border-color:#e74c3c;background:#2a1a1a}
+#action-panel .ap-btn:disabled{opacity:0.35;cursor:not-allowed}
+#action-panel .ap-desc{font-size:10px;color:#888;margin-top:2px;text-align:center}
+#action-panel .ap-confirm{display:flex;gap:4px;margin-top:6px}
+#action-panel .ap-confirm button{flex:1;padding:5px;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;color:#fff}
+#action-panel .ap-confirm .btn-ok{background:#27ae60}
+#action-panel .ap-confirm .btn-cancel{background:#c0392b}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="toolbar">
+  <h1>⚔ 哈士奇行动 · 西西里 1943</h1>
+  <span id="turn-info" class="info">回合 1 / 20</span>
+  <span id="phase-info" class="info phase-indicator">阶段: 英军部署</span>
+  <span id="player-badge" class="player-badge badge-uk">🇬🇧 英军 (P1)</span>
+  <span id="supply-info" class="info">补给: --</span>
+  <span id="vp-info" class="info">占领: --</span>
+</div>
+
+<div id="sidebar">
+  <h3 id="sidebar-title">📋 己方单位</h3>
+  <div id="unit-list"></div>
+  <div id="card-area" style="border-top:1px solid #333;padding-top:4px">
+    <div style="font-size:11px;color:#e74c3c;margin-bottom:2px" id="card-title">🃏 战术卡</div>
+    <div id="card-list" style="font-size:10px;color:#888;max-height:120px;overflow-y:auto"></div>
+  </div>
+  <div id="reinf-info" class="supply-info"></div>
+  <div id="cp-summary" class="supply-info" style="font-size:10px"></div>
+  <div id="selected-info" style="font-size:11px;color:#888;margin-top:4px;border-top:1px solid #333;padding-top:6px">
+    点击地图上的己方单位选中<br>再点击目标格下达命令
+  </div>
+</div>
+
+<div id="canvas-wrap"><canvas id="c"></canvas></div>
+
+<div id="action-panel">
+  <div class="ap-header" id="ap-header">
+    <span id="ap-title">≡ 选择单位</span>
+    <span class="ap-close" id="ap-close" title="关闭">✕</span>
+  </div>
+  <div class="ap-body" id="ap-body"></div>
+</div>
+
+<div id="bottombar">
+  <button class="btn-green" id="btn-end-phase">✓ 英军完成部署</button>
+  <button class="btn-gold" id="btn-resolve" style="display:none">⚡ 执行回合</button>
+  <button class="btn-secondary" id="btn-save">💾 存档</button>
+  <button class="btn-secondary" id="btn-load">📂 读档</button>
+  <span id="log" style="flex:1">就绪。英军请在己方占领点部署单位。</span>
+  <span id="shortcuts" style="font-size:10px;color:#555;white-space:nowrap">ESC=取消 | Enter=确认 | F4=重置</span>
+</div>
+</div>
+
+<div id="tooltip"></div>
+<div id="modal" style="display:none"></div>
+<div id="transition-screen">
+  <div class="msg" id="transition-msg"></div>
+  <div class="sub" id="transition-sub">点击任意位置继续</div>
+</div>
+
+<div id="stats-screen">
+  <div class="stats-card" id="stats-card"></div>
+</div>
+
+<script>
+console.log('Operation Husky - WEGO Edition starting...');
+window.onerror = function(msg, url, line) { console.error('JS ERROR line', line, ':', msg); alert('JS Error line '+line+': '+msg); };
+
+// ==============================
+//  CONSTANTS
+// ==============================
+const COLS = 50, ROWS = 40;
+const HEX_SIZE = 28;
+const SQRT3 = Math.sqrt(3);
+const MAX_TURNS = 20;
+const SAVE_VERSION = 3; // bumped for combat overhaul (v3)
+
+const PLAYER = { NONE:0, UK:1, GERMANY:2 };
+
+// WEGO phase system: each player deploys, then each player gives orders, then resolve
+const PHASE = {
+  DEPLOY_UK: 1,
+  DEPLOY_DE: 2,
+  ORDERS_UK: 3,
+  ORDERS_DE: 4,
+  RESOLVE: 5
+};
+
+// Movement action types
+const ACTION_TYPE = {
+  MOVE: 'move',
+  FORCED_MARCH: 'forcedMarch',
+  ADVANCE_FIRE: 'advanceFire',
+  RAPID_WITHDRAW: 'rapidWithdraw',
+  ATTACK: 'attack',
+};
+
+// Action descriptions for sidebar
+const ACTION_DESC = {
+  [ACTION_TYPE.MOVE]: '标准移动(MOV格) · +5组织恢复',
+  [ACTION_TYPE.FORCED_MARCH]: '双倍移动(MOV×2) · -1装备 -15组织',
+  [ACTION_TYPE.ADVANCE_FIRE]: '半速移动后攻击相邻敌军',
+  [ACTION_TYPE.RAPID_WITHDRAW]: '双倍移动 · 必须远离敌军 · -25组织',
+  [ACTION_TYPE.ATTACK]: '攻击相邻敌军',
+};
+
+// Reinforcement costs (supply points per unit type)
+const REINF_COST = {
+  inf: 2,
+  arm: 5,
+  art: 4,
+  eng: 3,
+  rec: 3
+};
+
+const TERRAIN = {
+  SEA:     {id:0,ch:'s',name:'海洋',color:'#1a3a5c',mc:99,def:0,imp:true},
+  BEACH:   {id:1,ch:'b',name:'海滩',color:'#c4b87a',mc:1,def:-1,imp:false},
+  PLAIN:   {id:2,ch:'p',name:'平原',color:'#7a9a5a',mc:1,def:0,imp:false},
+  HILL:    {id:3,ch:'h',name:'丘陵',color:'#8a8a4a',mc:3,def:1,imp:false},
+  MOUNTAIN:{id:4,ch:'m',name:'山地',color:'#6a6a3a',mc:4,def:3,imp:false},
+  TOWN:    {id:5,ch:'t',name:'城镇',color:'#c4956a',mc:1,def:2,imp:false},
+  URBAN:   {id:7,ch:'u',name:'城市',color:'#b8543a',mc:1,def:3,imp:false},
+  RIVER:   {id:9,ch:'r',name:'河流(已弃用→RIVER_EDGES)',color:'#2a5a7a',mc:3,def:-1,imp:false}, // DEPRECATED: use hex-edge RIVER_EDGES instead
+};
+const T_BY_CH = {};
+for(let k in TERRAIN) T_BY_CH[TERRAIN[k].ch]=TERRAIN[k];
+
+const UNIT_TYPES = {
+  inf: {id:'inf',name:'步兵营',softAtk:8,hardAtk:2,def:7,mov:4,rng:1,equip:10,org:100,sup:2,icon:'■',color:'#a0d0ff',vision:3},
+  arm: {id:'arm',name:'装甲营',softAtk:6,hardAtk:9,def:5,mov:6,rng:1,equip:8,org:80,sup:4,icon:'◆',color:'#d0a040',vision:4},
+  art: {id:'art',name:'炮兵营',softAtk:10,hardAtk:5,def:3,mov:3,rng:2,equip:6,org:60,sup:3,icon:'●',color:'#ff6060',vision:3},
+  eng: {id:'eng',name:'工兵营',softAtk:4,hardAtk:3,def:6,mov:4,rng:1,equip:8,org:90,sup:2,icon:'▲',color:'#80c080',vision:3},
+  rec: {id:'rec',name:'侦察营',softAtk:3,hardAtk:2,def:4,mov:5,rng:1,equip:6,org:70,sup:2,icon:'◇',color:'#c0c0ff',noZOC:true,vision:6},
+};
+
+// ==============================
+//  MAP DATA - Sicily 50x40 (improved shape)
+// ==============================
+const MAP_DATA = [
+  "sssssssssssssssssssssssssssssssssssssssbssshssssss",
+  "sssssssssssssssssssssssssssssssssssssssssssbssssss",
+  "ssssssssssssssssssssssssssssssssssssssssssssssssss",
+  "ssssssssssssssssssssssssssssssssssssssssssssssppsb",
+  "sssssssssssssssssssssssssssssssssssssssssssbPPpssp",
+  "sssssssssssssssssssssssssssssssssssssshPPPPPhUssbm",
+  "sssssssssssssssspsssssshpsssssssssssppHhhphhPssspm",
+  "sssssssssssssssbpssssshhPUssssssssPPHHhhhhhpPssspm",
+  "ssssssssssssssbpmssssPHPpPssssssPPhhhhhmmhpPsssspm",
+  "ssssssssssssTPPPPssPPmhppPbbppPPhhhmmmthhpPssssspp",
+  "sssssssssssppphpPPPphhhpmmHHHHhHmmmmhhhhhTssssssss",
+  "sssssssbssphhhhpppphmhhmmmhhhmmHmhthhmmmHsssssssss",
+  "ssssssbsssphhpppppphhhhhhmhhmhhHhhhhmmmmPsssssssss",
+  "ssssssssspphppppppmhhhhhhhhhhhhHhhhhmmmPssssssssss",
+  "sssssssstphpppppphhhmhhhhhhhhhHppphhmmpPssssssssss",
+  "sssssssspppppppphmhhmhhphhhhhHppppthmpPsssssssssss",
+  "ssssssssbppppppphhhhhhphHHHHHPTppphhpPbsssssssssss",
+  "ssssssssbpbbpppphppppppHpphphhPppppppUssssssssssss",
+  "ssssssssbbbssspppppppPPphhtphhPpppppPbbsssssssssss",
+  "ssssssssssssssssspppPhhhpppphhHpppppPbbbssssssssss",
+  "sssssssssssssssssppPpppppppphhHpppppPPPpssssssssss",
+  "sssssssssssssssssbbTppppppphhHphhpppppPPTsssssssss",
+  "ssssssssssssssssssbPpppppphhTpphhhpphppPssssssssss",
+  "sssssssssssssssssssPpppppPPPppphhhhhppPbssssssssss",
+  "sssssssssssssssssssPPTbbPpppppphmhhpppUsssssssssss",
+  "sssssssssssssssssssssssTpppppphhhhpppPbsssssssssss",
+  "sssssssssssssssssssssssbbppppphhpphppPbsssssssssss",
+  "ssssssssssssssssssssssssbpppphtppphppbssssssssssss",
+  "ssssssssssssssssssssssssbppphppppppppsssssssssssss",
+  "ssssssssssssssssssssssssbpppppppppppssssssssssssss",
+  "sssssssssssssssssssssssbbppppppppppsssssssssssssss",
+  "sssssssssssssssssssssssspppsssbbpppsssssssssssssss",
+  "sssssssssssssssssssssssssssssssbbpbsssssssssssssss",
+  "ssssssssssssssssssssssssssssssssbbssssssssssssssss",
+  "ssssssssssssssssssssssssssssssssssssssssssssssssss",
+  "ssssssssssssssssssssssssssssssssssssssssssssssssss",
+  "ssssssssssssssssssssssssssssssssssssssssssssssssss",
+  "ssssssssssssssssssssssssssssssssssssssssssssssssss",
+  "sssssssssssssssssssbssssssssssssssssssssssssssssss",
+  "sssssssssssssssssshhssssssssssssssssssssssssssssss"
+];
+
+
+const FOREST_DATA = [
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000001000000",
+  "00000000000000000000000100000000000000000100000000",
+  "00000000000000000000000100000000001111100000000000",
+  "00000000000000000000001100000000011111000000000000",
+  "00000000000000000000000000000000111100000000000000",
+  "00000000000000000000000100000000000000000000000000",
+  "00000000000000000000001100000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000100000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000100000000000000000000",
+  "00000000000000000000000011000110000000000000000000",
+  "00000000000000000000000000001100000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000001000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000100000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000001000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000100000000000000000000",
+  "00000000000000000000000000000000001000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000",
+  "00000000000000000000000000000000000000000000000000"
+];
+
+// ==============================
+//  STRATEGIC CAPTURE POINTS (18 — 4 cities + 14 towns)
+//  历史据点: 西西里战略点.md
+//  COORDS: 待用户画好西西里地图形状后微调
+// ==============================
+const CAPTURE_POINTS = [
+  // === 城市 (u) — 补给枢纽 ===
+  {q:45,r:5,  name:'巴勒莫 Palermo',     supply:6, startOwner:PLAYER.GERMANY, type:'city', effect:'palermo',    desc:'西西里首府·主要港口'},
+  {q:25,r:7,  name:'墨西拿 Messina',      supply:5, startOwner:PLAYER.GERMANY, type:'city', effect:'messina',    desc:'海峡咽喉·撤退要道'},
+  {q:37,r:17, name:'卡塔尼亚 Catania',     supply:5, startOwner:PLAYER.GERMANY, type:'city', effect:'catania',    desc:'东部大城·港口'},
+  {q:38,r:24, name:'锡拉库萨 Syracuse',    supply:5, startOwner:PLAYER.UK,     type:'city', effect:'syracuse',   desc:'东南古城·登陆目标·阿基米德故乡'},
+
+  // === 城镇 (t) — 局部补给 + 战斗修正 ===
+  {q:12,r:9,  name:'特拉帕尼 Trapani',    supply:3, startOwner:PLAYER.GERMANY, type:'town', effect:'trapani',    desc:'西岸港口·美军侧翼'},
+  {q:8, r:14, name:'马尔萨拉 Marsala',    supply:2, startOwner:PLAYER.GERMANY, type:'town', effect:'marsala',    desc:'甜酒之乡·加里波第登陆地'},
+  {q:19,r:21, name:'阿格里真托 Agrigento', supply:2, startOwner:PLAYER.GERMANY, type:'town', effect:'agrigento',  desc:'南岸古城·神庙谷'},
+  {q:23,r:25, name:'杰拉 Gela',            supply:4, startOwner:PLAYER.UK,     type:'town', effect:'gela',       desc:'美军登陆滩头·装甲反击战'},
+  {q:21,r:24, name:'利卡塔 Licata',        supply:3, startOwner:PLAYER.UK,     type:'town', effect:'licata',     desc:'西线登陆滩头'},
+  {q:30,r:16, name:'恩纳 Enna',            supply:3, startOwner:PLAYER.GERMANY, type:'town', effect:'enna',       desc:'中央高地·海拔931m·瞭望台'},
+  {q:26,r:18, name:'卡尔塔尼塞塔 Caltanissetta', supply:2, startOwner:PLAYER.GERMANY, type:'town', effect:'caltanissetta', desc:'内陆补给中转站'},
+  {q:28,r:22, name:'卡尔塔吉罗内 Caltagirone',   supply:2, startOwner:PLAYER.GERMANY, type:'town', effect:'caltagirone',   desc:'陶瓷之乡·公路枢纽'},
+  {q:34,r:11, name:'特罗伊纳 Troina',      supply:2, startOwner:PLAYER.GERMANY, type:'town', effect:'troina',     desc:'最惨烈战场·居高临下·88炮封路'},
+  {q:40,r:21, name:'奥古斯塔 Augusta',     supply:4, startOwner:PLAYER.UK,     type:'town', effect:'augusta',    desc:'东岸军港·潜艇基地'},
+  {q:30,r:27, name:'拉古萨 Ragusa',        supply:2, startOwner:PLAYER.GERMANY, type:'town', effect:'ragusa',     desc:'南线内陆支点·巴洛克古城'},
+  {q:34,r:15, name:'琴图里佩 Centuripe',   supply:2, startOwner:PLAYER.GERMANY, type:'town', effect:'centuripe',  desc:'西西里的阳台·俯瞰卡塔尼亚'},
+  {q:41,r:10, name:'陶尔米纳 Taormina',    supply:2, startOwner:PLAYER.GERMANY, type:'town', effect:'taormina',   desc:'东岸悬崖镇·古希腊剧场'},
+  {q:38,r:9,  name:'兰达佐 Randazzo',      supply:2, startOwner:PLAYER.GERMANY, type:'town', effect:'randazzo',   desc:'埃特纳北麓·德军撤退要道'},
+  // 马耳他 — 英国地中海舰队总部
+  {q:18,r:38, name:'马耳他 Malta',          supply:7, startOwner:PLAYER.UK,     type:'city', effect:'malta',      desc:'地中海舰队总部·永不沉没的航母'},
+];
+//  每个据点有独特游戏机制效果
+// ==============================
+const SPECIAL_EFFECTS = {
+  // 墨西拿: 德军占领每回合+1援兵; 英军占领→立即胜利
+  messina: {
+    name: '海峡咽喉',
+    onTurnStart: function(player) {
+      if (player === PLAYER.GERMANY) reinfPoints[PLAYER.GERMANY] += 1;
+    },
+    onCapture: function(newOwner) {
+      if (newOwner === PLAYER.UK) {
+        logEvent('🏆 英军占领墨西拿! 德军撤退路线被切断!');
+        setTimeout(()=>showEndModal('🇬🇧 英军战役胜利!',
+          '巴顿将军率先冲入墨西拿!\n德军4万人+6万意军已全部撤离\n\n'+
+          '历史: 1943年8月17日,盟军完全占领西西里\n'+
+          '轴心国成功完成敦刻尔克式撤退'), 800);
+      }
+    },
+  },
+  // 巴勒莫: 占领方补给半径+3
+  palermo: {
+    name: '首府港口',
+    supplyRadiusBonus: 3,
+  },
+  // 卡塔尼亚: 德军守军 Org+20%
+  catania: {
+    name: '戈林师防线',
+    defenderOrgBonus: function(owner) { return owner===PLAYER.GERMANY ? 0.20 : 0; },
+  },
+  // 锡拉库萨: 主要补给港
+  syracuse: {
+    name: '阿基米德故城',
+    supplyBonus: 1,
+  },
+  // 特拉帕尼: 标准港口
+  trapani: {
+    name: '腓尼基古港',
+    supplyBonus: 0,
+  },
+  // 马尔萨拉: 补给+1
+  marsala: {
+    name: '千人远征登陆地',
+    supplyBonus: 1,
+  },
+  // 阿格里真托
+  agrigento: {
+    name: '神庙谷',
+    supplyBonus: 0,
+  },
+  // 杰拉: 若德军夺回，英军全局Org-25%
+  gela: {
+    name: '滩头装甲反击',
+    onCapture: function(newOwner) {
+      if (newOwner === PLAYER.GERMANY) {
+        logEvent('🔥 德军夺回杰拉滩头! 英军全局组织度-25%!');
+        for (let id in units) {
+          const u = units[id];
+          if (u.owner === PLAYER.UK) {
+            u.org = Math.max(5, u.org - Math.floor(u.maxOrg * 0.25));
+          }
+        }
+      }
+    },
+  },
+  // 利卡塔
+  licata: {
+    name: '西线起点',
+    supplyBonus: 0,
+  },
+  // 恩纳: 视野+3 (在工具提示中显示，实际通过侦察半径体现)
+  enna: {
+    name: '西西里瞭望台',
+    visionBonus: 3,
+    supplyBonus: 1,
+  },
+  // 卡尔塔尼塞塔
+  caltanissetta: {
+    name: '内陆中转站',
+    supplyBonus: 0,
+  },
+  // 卡尔塔吉罗内: 道路节点，控制方所有单位移动消耗-0.5（由getMoveCost实现）
+  caltagirone: {
+    name: '公路枢纽',
+  },
+  // 特罗伊纳: 守方Org消耗-50%
+  troina: {
+    name: '钢铁堡垒',
+    defenderOrgSave: 0.50,  // defender takes only 50% org damage
+    defenderDefBonus: 2,    // extra defense bonus
+  },
+  // 奥古斯塔
+  augusta: {
+    name: '潜艇基地',
+    supplyBonus: 1,
+  },
+  // 拉古萨
+  ragusa: {
+    name: '巴洛克古城',
+    defenderDefBonus: 1,
+  },
+  // 琴图里佩: 对卡塔尼亚方向攻击+3骰子
+  centuripe: {
+    name: '俯瞰卡塔尼亚',
+    attackDiceBonus: function(atkUnit, targetQ, targetR) {
+      // Check if attacking toward Catania (q≈33, r≈19)
+      const cataniaCP = capturePoints.find(cp=>cp.effect==='catania');
+      if (cataniaCP && hexDistance(targetQ, targetR, cataniaCP.q, cataniaCP.r) <= 5) {
+        return 3;
+      }
+      return 0;
+    },
+  },
+  // 陶尔米纳: 纯胜利点数
+  taormina: {
+    name: '古希腊剧场',
+    supplyBonus: 0,
+  },
+  // 兰达佐: 英军占领后德军北线断补
+  randazzo: {
+    name: '撤退要道',
+    onCapture: function(newOwner) {
+      if (newOwner === PLAYER.UK) {
+        logEvent('🪤 兰达佐被英军占领! 德军墨西拿撤退路线受威胁!');
+        // Apply immediate attrition to German units near Messina
+        const messinaCP = capturePoints.find(cp=>cp.effect==='messina');
+        for (let id in units) {
+          const u = units[id];
+          if (u.owner === PLAYER.GERMANY) {
+            const dist = messinaCP ? hexDistance(u.q, u.r, messinaCP.q, messinaCP.r) : 99;
+            if (dist <= 5) {
+              u.org -= Math.floor(u.maxOrg * 0.30);
+              u.equip = Math.max(0, u.equip - 2);
+              logEvent(`  ⚠ ${u.name} 撤退路线被截 -2装备 -30%组织`);
+            }
+          }
+        }
+      }
+    },
+  },
+  // 马耳他: 英国地中海补给中枢 — 每回合+3援兵 +3补给值
+  malta: {
+    name: '不沉的航母',
+    supplyBonus: 3,          // +3 to total supply value → +1 reinf per turn
+    onTurnStart: function(player) {
+      if (player === PLAYER.UK) {
+        reinfPoints[PLAYER.UK] += 2;  // direct +2 reinforcement points
+        logEvent('🚢 马耳他补给舰队抵达! 英军 +2兵力点');
+      }
+    },
+  },
+};
+
+function getCPEffect(cp) { return cp.effect ? SPECIAL_EFFECTS[cp.effect] : null; }
+
+// Historical OOB - Operation Husky, July 1943
+const BRITISH_UNITS = [
+  // Syracuse (British 5th Division, D-Day)
+  {type:'inf',name:'第5师1营',q:38,r:24},
+  {type:'inf',name:'第5师2营',q:38,r:23},
+  {type:'eng',name:'第5师工兵营',q:38,r:25},
+  // Augusta (17th Brigade)
+  {type:'inf',name:'第17步兵旅',q:40,r:21},
+  {type:'rec',name:'第4侦察营',q:39,r:22},
+  // Gela (US 1st Infantry Division)
+  {type:'inf',name:'第16步兵团1营',q:23,r:25},
+  {type:'inf',name:'第16步兵团2营',q:23,r:24},
+  {type:'arm',name:'第44皇家坦克团',q:24,r:26},
+  {type:'art',name:'第5皇家炮兵营',q:24,r:27},
+  {type:'rec',name:'第12枪骑兵侦察营',q:25,r:29},
+  // Licata (US 3rd Infantry Division)
+  {type:'inf',name:'第7步兵团1营',q:21,r:24},
+  {type:'inf',name:'第7步兵团2营',q:20,r:24},
+  {type:'arm',name:'第3郡骑兵装甲营',q:23,r:26},
+  {type:'art',name:'第2野战炮兵营',q:25,r:28},
+  {type:'eng',name:'第7皇家工兵营',q:20,r:23},
+  // Paratroops
+  {type:'inf',name:'第1加拿大师步兵营',q:37,r:25},
+  {type:'inf',name:'第82空降师505团1营',q:28,r:22},
+];
+
+const GERMAN_UNITS = [
+  // Catania defense (Hermann Göring Division + 1st Fallschirmjäger)
+  {type:'inf',name:'戈林师装甲掷弹兵1营',q:37,r:17},
+  {type:'arm',name:'戈林师装甲营',q:38,r:15},
+  {type:'art',name:'戈林师炮兵营',q:36,r:17},
+  {type:'inf',name:'第1伞兵师1营',q:37,r:16},
+  {type:'inf',name:'第1伞兵师2营',q:36,r:18},
+  // Centuripe-Troina line (15th Panzergrenadier Division)
+  {type:'inf',name:'第15装甲掷弹师1营',q:34,r:11},
+  {type:'inf',name:'第15装甲掷弹师2营',q:33,r:10},
+  {type:'arm',name:'第215装甲营',q:33,r:12},
+  {type:'rec',name:'第15侦察营',q:32,r:14},
+  // Central reserve (29th Panzergrenadier)
+  {type:'inf',name:'第29装甲掷弹团2营',q:30,r:16},
+  {type:'art',name:'第29炮兵团1营',q:28,r:17},
+  {type:'eng',name:'第33工兵营',q:28,r:18},
+  // Gela counterattack (Italian Livorno Division + Göring armor)
+  {type:'inf',name:'意大利利沃诺师1营',q:21,r:22,nation:'ita'},
+  {type:'inf',name:'意大利利沃诺师2营',q:22,r:22,nation:'ita'},
+  {type:'inf',name:'戈林师装甲掷弹兵2营',q:25,r:18},
+];
+
+// ==============================
+//  GAME MODE
+// ==============================
+const GAME_MODE = { HOTSEAT:0, UK_VS_AI:1, AI_VS_DE:2 };
+let gameMode = GAME_MODE.HOTSEAT;
+let aiThinking = false;
+
+function isAIPhase() {
+  if (gameMode === GAME_MODE.UK_VS_AI && currentPlayer === PLAYER.GERMANY) return true;
+  if (gameMode === GAME_MODE.AI_VS_DE && currentPlayer === PLAYER.UK) return true;
+  return false;
+}
+
+// ---- AI Deploy ----
+function runAIDeploy() {
+  var player = currentPlayer;
+  var rp = reinfPoints[player] || 0;
+  if (rp <= 0) { endAIPhase(); return; }
+
+  var myCPs = capturePoints.filter(function(cp){
+    var h = getHex(cp.q, cp.r);
+    return h && h.owner === player && !h.unitId;
+  });
+  var enemyPlayer = player===PLAYER.UK ? PLAYER.GERMANY : PLAYER.UK;
+  myCPs.sort(function(a,b){
+    return minDistToEnemyCP(a.q, a.r, enemyPlayer) - minDistToEnemyCP(b.q, b.r, enemyPlayer);
+  });
+
+  if (rp >= 4 && Math.random() < 0.4) { buyTacticalCard(player); }
+
+  var rp2 = reinfPoints[player] || 0;
+  // Germany: 35% chance to deploy cheap Italian infantry instead
+  if (player === PLAYER.GERMANY && rp2 >= 1 && Math.random() < 0.35) {
+    for (var i=0; i<myCPs.length; i++) {
+      var cp = myCPs[i];
+      createUnit('inf', player, cp.q, cp.r, '德军🇮🇹 AI-意大利步兵', {nation:'ita'});
+      reinfPoints[player] = Math.max(0, (reinfPoints[player]||0) - 1);
+      logEvent('🤖 AI部署 🇮🇹意大利步兵 到 ('+cp.q+','+cp.r+') [-1点]');
+      updateAll();
+      return;
+    }
+  }
+  var prefOrder = player===PLAYER.UK ? ['arm','inf','art','eng','rec'] : ['inf','art','eng','inf','rec'];
+  for (var i=0; i<myCPs.length; i++) {
+    var cp = myCPs[i];
+    for (var j=0; j<prefOrder.length; j++) {
+      var cost = getReinfCost(prefOrder[j]);
+      if ((reinfPoints[player]||0) >= cost) {
+        var prefix = player===PLAYER.UK ? '英军' : '德军';
+        createUnit(prefOrder[j], player, cp.q, cp.r, prefix+' AI-'+UNIT_TYPES[prefOrder[j]].name);
+        reinfPoints[player] = Math.max(0, (reinfPoints[player]||0) - cost);
+        logEvent('🤖 AI部署 '+UNIT_TYPES[prefOrder[j]].name+' 到 ('+cp.q+','+cp.r+')');
+        updateAll();
+        return;
+      }
+    }
+  }
+  endAIPhase();
+}
+
+function minDistToEnemyCP(q, r, enemyPlayer) {
+  var md = 99;
+  for (var i=0; i<capturePoints.length; i++) {
+    var cp = capturePoints[i];
+    var h = getHex(cp.q, cp.r);
+    if (h && h.owner === enemyPlayer) {
+      var d = hexDistance(q, r, cp.q, cp.r);
+      if (d < md) md = d;
+    }
+  }
+  return md;
+}
+
+// ---- AI Orders ----
+function runAIOrders() {
+  var player = currentPlayer;
+  var enemyPlayer = player===PLAYER.UK ? PLAYER.GERMANY : PLAYER.UK;
+  var myUnits = [];
+  for (var id in units) {
+    var u = units[id];
+    if (u.owner === player && u.equip > 0 && !unitOrders[id]) myUnits.push(u);
+  }
+  if (myUnits.length === 0) { endAIPhase(); return; }
+
+  for (var i=0; i<myUnits.length; i++) {
+    var unit = myUnits[i];
+    if (unitOrders[unit.id]) continue;
+    var ut = getUnitType(unit);
+
+    // Find nearest enemy
+    var nearestEnemy = null, nearestDist = 99;
+    for (var id2 in units) {
+      var u2 = units[id2];
+      if (u2.owner !== enemyPlayer || u2.equip <= 0) continue;
+      var d = hexDistance(unit.q, unit.r, u2.q, u2.r);
+      if (d < nearestDist) { nearestDist = d; nearestEnemy = u2; }
+    }
+
+    // Find nearest enemy CP
+    var nearestECP = null, nearestECPDist = 99;
+    for (var j=0; j<capturePoints.length; j++) {
+      var cp = capturePoints[j];
+      var h = getHex(cp.q, cp.r);
+      if (h && h.owner === enemyPlayer) {
+        var d2 = hexDistance(unit.q, unit.r, cp.q, cp.r);
+        if (d2 < nearestECPDist) { nearestECPDist = d2; nearestECP = cp; }
+      }
+    }
+
+    // Decide action
+    var action = null;
+    if (unit.routed) {
+      action = (nearestEnemy && nearestDist <= 3) ? 'retreat' : 'move';
+    } else if (unit.org < unit.maxOrg * 0.25) {
+      action = 'retreat';
+    } else if (nearestEnemy && nearestDist <= ut.rng) {
+      action = 'attack';
+    } else if (nearestECP) {
+      action = 'move';
+    }
+    if (!action) continue;
+
+    if (action === 'attack' && nearestEnemy) {
+      selectedUnitId = unit.id;
+      giveAttackOrder(unit, nearestEnemy.q, nearestEnemy.r, nearestEnemy, ACTION_TYPE.ATTACK);
+    } else if (action === 'retreat' && nearestEnemy) {
+      var retreatHex = null, bestD = nearestDist;
+      var dirs = hexNeighbors(unit.q, unit.r);
+      for (var k=0; k<dirs.length; k++) {
+        var nh = getHex(dirs[k].q, dirs[k].r);
+        if (!nh || nh.terrain.imp || getUnitAt(dirs[k].q, dirs[k].r)) continue;
+        var dd = hexDistance(dirs[k].q, dirs[k].r, nearestEnemy.q, nearestEnemy.r);
+        if (dd > bestD) { bestD = dd; retreatHex = dirs[k]; }
+      }
+      if (retreatHex) {
+        var rpath = findPath(unit.q, unit.r, retreatHex.q, retreatHex.r, unit);
+        selectedUnitId = unit.id;
+        if (rpath && rpath.length > 0) giveMoveOrder(unit, retreatHex.q, retreatHex.r, rpath, ACTION_TYPE.RAPID_WITHDRAW);
+      }
+    } else if (nearestECP) {
+      var tq = nearestECP.q, tr = nearestECP.r;
+      var nb = hexNeighbors(tq, tr).filter(function(n){
+        var nh = getHex(n.q, n.r);
+        return nh && !nh.terrain.imp && !getUnitAt(n.q, n.r);
+      });
+      var bestPath = null, bestLen = 99;
+      for (var m=0; m<nb.length; m++) {
+        var p = findPath(unit.q, unit.r, nb[m].q, nb[m].r, unit);
+        if (p && p.length < bestLen) { bestPath = p; bestLen = p.length; }
+      }
+      if (bestPath && bestLen > 0) {
+        var dest = bestPath[bestPath.length-1];
+        var mt = nearestDist <= 5 ? ACTION_TYPE.FORCED_MARCH : ACTION_TYPE.MOVE;
+        selectedUnitId = unit.id;
+        giveMoveOrder(unit, dest.q, dest.r, bestPath, mt);
+      }
+    }
+    if (pendingOrder) { confirmOrder(); }
+  }
+  runAICards();
+  endAIPhase();
+}
+
+// ---- AI Card Usage ----
+function runAICards() {
+  var player = currentPlayer;
+  var hand = playerCards[player] || [];
+  if (hand.length === 0) return;
+  var nearEnemyCount = 0;
+  for (var id in units) {
+    var u = units[id];
+    if (u.owner !== player || u.equip <= 0) continue;
+    for (var id2 in units) {
+      var u2 = units[id2];
+      if (u2.owner === player || u2.equip <= 0) continue;
+      if (hexDistance(u.q, u.r, u2.q, u2.r) <= 3) nearEnemyCount++;
+    }
+  }
+  // Find best target unit for unit cards
+  var strongestUnit = null, bestAtk = -1;
+  var mostDamagedUnit = null, lowestOrgPct = 1.0;
+  for (var uid in units) {
+    var uu = units[uid];
+    if (uu.owner !== player || uu.equip <= 0) continue;
+    var ut = getUnitType(uu);
+    var atk = ut && (uu.owner===PLAYER.UK ? ut.softAtk : ut.hardAtk) || 0;
+    if (atk > bestAtk) { bestAtk = atk; strongestUnit = uu; }
+    var orgPct = uu.org / uu.maxOrg;
+    if (orgPct < lowestOrgPct) { lowestOrgPct = orgPct; mostDamagedUnit = uu; }
+  }
+  var cardsToPlay = [];
+  for (var i=0; i<hand.length; i++) {
+    var card = hand[i];
+    var play = false, targetId = null, targetQ, targetR;
+    if (card.effType === 'attackDice' && nearEnemyCount >= 3) play = true;
+    if (card.effType === 'equipRepair' && nearEnemyCount >= 2) play = true;
+    if (card.effType === 'removeRout') {
+      for (var id in units) { var ur = units[id]; if (ur.owner === player && ur.routed) { play = true; break; } }
+    }
+    if (card.effType === 'supplyRadius' && nearEnemyCount >= 2) play = true;
+    if (card.effType === 'defenseDice' && nearEnemyCount >= 2) play = true;
+    // Unit-targeting cards
+    if (card.effType === 'unitAtkBonus' && strongestUnit && nearEnemyCount >= 2) {
+      play = true; targetId = strongestUnit.id;
+    }
+    if (card.effType === 'orgRepair' && mostDamagedUnit && lowestOrgPct < 0.5) {
+      play = true; targetId = mostDamagedUnit.id;
+    }
+    if (play) {
+      if (card.target === 'global') cardsToPlay.push({uid:card.uid});
+      else if (card.target === 'unit' && targetId) cardsToPlay.push({uid:card.uid, targetId:targetId});
+    }
+  }
+  for (var j=0; j<cardsToPlay.length; j++) {
+    var cp = cardsToPlay[j];
+    playCard(player, cp.uid, cp.targetId || null);
+  }
+}
+
+// ---- AI Phase Handler ----
+function endAIPhase() {
+  aiThinking = false;
+  // Hide AI overlay before showing the normal transition screen
+  document.getElementById('transition-screen').style.display = 'none';
+  if (currentPhase === PHASE.DEPLOY_UK) endDeployUK();
+  else if (currentPhase === PHASE.DEPLOY_DE) endDeployDE();
+  else if (currentPhase === PHASE.ORDERS_UK) endOrdersUK();
+  else if (currentPhase === PHASE.ORDERS_DE) endOrdersDE();
+}
+
+function triggerAI() {
+  if (!isAIPhase() || aiThinking) return;
+  aiThinking = true;
+  // Show AI overlay — blocks view of AI operations, no click required
+  var screen = document.getElementById('transition-screen');
+  document.getElementById('transition-msg').textContent = '🤖 AI思考中...';
+  document.getElementById('transition-sub').textContent = '请稍候，AI正在进行决策';
+  screen.style.display = 'flex';
+  logEvent('🤖 AI思考中...');
+  if (currentPhase === PHASE.DEPLOY_UK || currentPhase === PHASE.DEPLOY_DE) {
+    function deployStep() {
+      if (!isAIPhase() || currentPhase === PHASE.RESOLVE) { aiThinking = false; document.getElementById('transition-screen').style.display = 'none'; return; }
+      var rp = reinfPoints[currentPlayer] || 0;
+      if (rp <= 0) { endAIPhase(); return; }
+      runAIDeploy();
+      if ((reinfPoints[currentPlayer]||0) > 0 && isAIPhase()) { setTimeout(deployStep, 500); }
+      else { setTimeout(function(){ if (isAIPhase()) endAIPhase(); }, 400); }
+    }
+    setTimeout(deployStep, 600);
+  } else if (currentPhase === PHASE.ORDERS_UK || currentPhase === PHASE.ORDERS_DE) {
+    setTimeout(function(){
+      if (!isAIPhase()) { aiThinking = false; document.getElementById('transition-screen').style.display = 'none'; return; }
+      runAIOrders();
+    }, 600);
+  }
+}
+
+// ==============================
+//  GAME STATE
+// ==============================
+let hexGrid = [];
+let units = {};
+let unitIdCounter = 1;
+let capturePoints = [];
+let currentTurn = 1;
+let currentPhase = PHASE.DEPLOY_UK;
+let currentPlayer = PLAYER.UK;
+let selectedUnitId = null;
+let pendingOrder = null;
+let selectedActionType = ACTION_TYPE.MOVE; // current movement action mode
+let selectedCardUid = null; // card being targeted (requires clicking unit/hex)
+let unitOrders = {};
+let reinfPoints = {1:0, 2:0}; // supply points for buying units
+let eventLog = [];
+let turnStats = null; // collected during resolveTurn for end-of-turn stats panel
+
+function setActionType(type) {
+  selectedActionType = type;
+  pendingOrder = null;
+  updateSidebar();
+}
+window.setActionType = setActionType;
+
+// Camera
+let camX = 0, camY = 0, zoom = 1.0;
+let mouseX = 0, mouseY = 0;
+let isDragging = false, dragStartX = 0, dragStartY = 0, dragCamX = 0, dragCamY = 0;
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// ==============================
+//  HEX MATH (axial coords, pointy-top)
+// ==============================
+function hexToPixel(q, r) {
+  return {x: HEX_SIZE * (SQRT3 * q + SQRT3/2 * r), y: HEX_SIZE * (3/2 * r)};
+}
+function pixelToHex(px, py) {
+  const q = (SQRT3/3 * px - 1/3 * py) / HEX_SIZE;
+  const r = (2/3 * py) / HEX_SIZE;
+  return hexRound(q, r);
+}
+function hexRound(q, r) {
+  const s = -q - r;
+  let rq = Math.round(q), rr = Math.round(r), rs = Math.round(s);
+  const dq = Math.abs(rq - q), dr = Math.abs(rr - r), ds = Math.abs(rs - s);
+  if (dq > dr && dq > ds) rq = -rr - rs;
+  else if (dr > ds) rr = -rq - rs;
+  return {q:rq, r:rr};
+}
+function hexCorners(cx, cy) {
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = Math.PI/180 * (60*i - 30);
+    pts.push({x:cx + HEX_SIZE*Math.cos(angle), y:cy + HEX_SIZE*Math.sin(angle)});
+  }
+  return pts;
+}
+function hexNeighbors(q, r) {
+  const dirs = [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+  return dirs.map(d=>({q:q+d[0], r:r+d[1]})).filter(h=>isValidHex(h.q,h.r));
+}
+function hexDistance(q1, r1, q2, r2) {
+  return (Math.abs(q1-q2) + Math.abs(q1+r1-q2-r2) + Math.abs(r1-r2)) / 2;
+}
+function isValidHex(q, r) {
+  return q >= 0 && q < COLS && r >= 0 && r < ROWS;
+}
+function getHex(q, r) {
+  if (!isValidHex(q,r)) return null;
+  return hexGrid[r][q];
+}
+function hexKey(q,r) { return q+','+r; }
+
+// Hex edge definitions — maps each of the 6 neighbor directions to the two corner
+// indices that form the shared edge between the current hex and that neighbor.
+// Used for river edges, deployment borders, and reachable-range outlines.
+const EDGE_DEFS = [
+  {dq:1, dr:0,  c1:0, c2:1},  // East       (neighbor +1, 0)  — corners 0→1
+  {dq:0, dr:1,  c1:1, c2:2},  // Southeast  (neighbor  0,+1)  — corners 1→2
+  {dq:-1,dr:1,  c1:2, c2:3},  // Southwest  (neighbor -1,+1)  — corners 2→3
+  {dq:-1,dr:0,  c1:3, c2:4},  // West       (neighbor -1, 0)  — corners 3→4
+  {dq:0, dr:-1, c1:4, c2:5},  // Northwest  (neighbor  0,-1)  — corners 4→5
+  {dq:1, dr:-1, c1:5, c2:0},  // Northeast  (neighbor +1,-1)  — corners 5→0
+];
+
+// RIVER_EDGES: Set of hex-edge identifiers representing rivers.
+// An edge is the border between two adjacent hexes, identified by a canonical
+// string "q1,r1|q2,r2" where (q1,r1) is lexicographically ≤ (q2,r2).
+const RIVER_EDGES = new Set();
+
+// Generate a canonical, direction-independent key for the edge between two hexes.
+function edgeKey(q1, r1, q2, r2) {
+  const a = q1 + ',' + r1, b = q2 + ',' + r2;
+  return a < b ? a + '|' + b : b + '|' + a;
+}
+
+// Check whether a river edge exists between two (adjacent) hexes.
+function hasRiverEdge(q1, r1, q2, r2) {
+  return RIVER_EDGES.has(edgeKey(q1, r1, q2, r2));
+}
+
+// 2d6 bell-curve dice roll (range 2-12, mean 7)
+function roll2d6() {
+  return Math.floor(Math.random() * 6) + Math.floor(Math.random() * 6) + 2;
+}
+
+// ==============================
+//  TACTICAL CARDS SYSTEM
+// ==============================
+const TACTICAL_CARDS = [
+  {id:'escort',     name:'护航船队',   icon:'🚢', desc:'本回合己方补给半径+3',              effType:'supplyRadius', effVal:3, target:'global'},
+  {id:'airstrike',  name:'空中支援',   icon:'✈️', desc:'本回合己方所有攻击掷骰+2',           effType:'attackDice',   effVal:2, target:'global'},
+  {id:'repair',     name:'枪械维修',   icon:'🔧', desc:'所有己方单位恢复5点装备',             effType:'equipRepair',  effVal:5, target:'global'},
+  {id:'forcedMarch',name:'强行军令',   icon:'📯', desc:'指定一个单位，本回合移动力+3',        effType:'unitMovBonus', effVal:3, target:'unit'},
+  {id:'fortify',    name:'防御工事',   icon:'🛡️', desc:'指定一个单位，本回合防御+3',          effType:'unitDefBonus', effVal:3, target:'unit'},
+  {id:'recon',      name:'侦察报告',   icon:'🔭', desc:'本回合看清地图上所有敌军位置',        effType:'revealAll',    effVal:1, target:'global'},
+  {id:'supplyDrop', name:'补给优先',   icon:'📦', desc:'指定一个单位，装备与组织完全恢复',    effType:'fullRepair',   effVal:1, target:'unit'},
+  {id:'barrage',    name:'炮火支援',   icon:'💥', desc:'本回合己方所有攻击掷骰+3',           effType:'attackDice',   effVal:3, target:'global'},
+  {id:'fieldHosp',  name:'战地医院',   icon:'🏥', desc:'己方所有溃退单位立即恢复士气',        effType:'removeRout',   effVal:1, target:'global'},
+  {id:'navalGun',   name:'海军炮击',   icon:'🚢💥',desc:'对目标六角格造成1-3装备伤害',        effType:'navalStrike',  effVal:3, target:'hex'},
+  {id:'airSupply',  name:'空降补给',   icon:'🪂', desc:'指定一个单位两回合内不受补给惩罚',    effType:'supplyImmune', effVal:2, target:'unit'},
+  {id:'engineers',  name:'桥梁工兵',   icon:'🌉', desc:'本回合跨河: 移动无+2惩罚, 攻击无+2防御惩罚',effType:'riverRoad',    effVal:1, target:'global'},
+  {id:'raidOrders', name:'突袭命令',   icon:'⚡', desc:'指定一个单位，本回合攻击力+3',        effType:'unitAtkBonus', effVal:3, target:'unit'},
+  {id:'frontlineMed',name:'前线救护',  icon:'💊', desc:'指定一个单位，立即恢复25组织度',      effType:'orgRepair',    effVal:25, target:'unit'},
+  {id:'smokeCover', name:'烟雾掩护',   icon:'🌫', desc:'本回合敌军攻击我方时攻击骰-1',        effType:'defenseDice',  effVal:1, target:'global'},
+];
+
+let playerCards = {1:[], 2:[]};        // tactical card inventory (no limit)
+let playerActiveCards = {1:[], 2:[]};  // cards played this turn
+let draftMode = null; // {player, cards:[2 cards], phase:'pick'} — initial draft state
+
+// Fog of War
+let exploredHexes = {1: new Set(), 2: new Set()}; // hex keys player has ever seen
+let visibleHexes = {1: new Set(), 2: new Set()};   // hex keys currently visible
+
+function calculateVisibility() {
+  // Reset current visibility
+  visibleHexes[PLAYER.UK] = new Set();
+  visibleHexes[PLAYER.GERMANY] = new Set();
+  // Always-visible: all non-impassable hexes within 2 of owned capture point or unit — no, just unit-based
+  // BFS from each unit
+  for (let player of [PLAYER.UK, PLAYER.GERMANY]) {
+    const vis = visibleHexes[player];
+    const explored = exploredHexes[player];
+    // Always see own CPs and adjacent hexes
+    for (let cp of capturePoints) {
+      const cph = getHex(cp.q, cp.r);
+      if (cph && cph.owner === player) {
+        vis.add(hexKey(cp.q, cp.r));
+        explored.add(hexKey(cp.q, cp.r));
+        for (let n of hexNeighbors(cp.q, cp.r)) {
+          const nh = getHex(n.q, n.r);
+          if (nh && !nh.terrain.imp) {
+            vis.add(hexKey(n.q, n.r));
+            explored.add(hexKey(n.q, n.r));
+          }
+        }
+      }
+    }
+    // Unit-based vision
+    for (let id in units) {
+      const u = units[id];
+      if (u.owner !== player || u.equip <= 0) continue;
+      // If recon card active, all enemy hexes are visible — handled per-player
+      const ut = getUnitType(u);
+      let visRange = ut.vision || 3;
+      // Enna: +3 vision for unit on the Enna CP
+      const ennaCP = capturePoints.find(cp=>cp.effect==='enna');
+      if (ennaCP && u.q===ennaCP.q && u.r===ennaCP.r) {
+        visRange += 3;
+      }
+      // BFS from unit position
+      const startKey = hexKey(u.q, u.r);
+      const visited = new Set([startKey]);
+      const queue = [{q:u.q, r:u.r, d:0}];
+      while (queue.length > 0) {
+        const {q, r, d} = queue.shift();
+        vis.add(hexKey(q,r));
+        explored.add(hexKey(q,r));
+        if (d >= visRange) continue;
+        for (let n of hexNeighbors(q, r)) {
+          const nk = hexKey(n.q, n.r);
+          if (visited.has(nk)) continue;
+          visited.add(nk);
+          // Mountains/hills reduce vision range by blocking (cost 2 instead of 1)
+          const nh = getHex(n.q, n.r);
+          if (!nh || nh.terrain.imp) continue;
+          const stepCost = (nh.terrain.id === 4) ? 2 : 1; // mountain blocks vision faster
+          if (d + stepCost <= visRange) {
+            queue.push({q:n.q, r:n.r, d: d + stepCost});
+          }
+        }
+      }
+    }
+    // RevealAll card: make all non-impassable hexes visible
+    if (hasActiveEffect(player, 'revealAll')) {
+      for (let r=0; r<ROWS; r++) {
+        for (let q=0; q<COLS; q++) {
+          const h = hexGrid[r][q];
+          if (h && !h.terrain.imp) {
+            vis.add(hexKey(q,r));
+            explored.add(hexKey(q,r));
+          }
+        }
+      }
+    }
+  }
+}
+
+// Check if a hex is visible to a player
+function isHexVisible(q, r, player) {
+  // Sea hexes near land are partially visible — let's say sea hexes within 3 of any owned hex
+  const h = getHex(q, r);
+  if (!h) return false;
+  if (h.terrain.imp) {
+    // Sea hex: visible if adjacent to any visible/explored land hex
+    for (let n of hexNeighbors(q, r)) {
+      const nh = getHex(n.q, n.r);
+      if (nh && !nh.terrain.imp && visibleHexes[player].has(hexKey(n.q, n.r))) return true;
+    }
+    return false;
+  }
+  return visibleHexes[player].has(hexKey(q,r));
+}
+function isHexExplored(q, r, player) {
+  return exploredHexes[player].has(hexKey(q,r));
+}
+
+// Update FOW after any state change
+function updateFOW() {
+  calculateVisibility();
+  // Always update explored from visible (visible → explored)
+  for (let player of [PLAYER.UK, PLAYER.GERMANY]) {
+    for (let key of visibleHexes[player]) {
+      exploredHexes[player].add(key);
+    }
+  }
+}
+
+// Special per-unit buffs from cards (expire end of turn)
+let unitCardBuffs = {}; // unitId -> {movBonus:3, defBonus:3, supplyImmune:2}
+
+function drawTacticalCard(player) {
+  const idx = Math.floor(Math.random() * TACTICAL_CARDS.length);
+  const card = {...TACTICAL_CARDS[idx]};
+  card.uid = Date.now() + Math.random();
+  playerCards[player].push(card);
+  logEvent(`🃏 ${player===PLAYER.UK?'英军':'德军'} 获得: ${card.icon} ${card.name}`);
+  return card;
+}
+
+// Cost to buy a card with supply points
+const CARD_BUY_COST = 2;
+
+function buyTacticalCard(player) {
+  if ((reinfPoints[player]||0) < CARD_BUY_COST) {
+    logEvent(`⚠ 兵力点不足 (需要${CARD_BUY_COST}点，当前${reinfPoints[player]||0})`);
+    return null;
+  }
+  reinfPoints[player] -= CARD_BUY_COST;
+  const card = drawTacticalCard(player);
+  logEvent(`🛒 ${player===PLAYER.UK?'英军':'德军'} 花费${CARD_BUY_COST}兵力点购卡`);
+  updateAll();
+  return card;
+}
+window.buyTacticalCard = buyTacticalCard;
+
+function playCard(player, cardUid, targetUnitId, targetQ, targetR) {
+  const hand = playerCards[player];
+  const idx = hand.findIndex(c=>c.uid===cardUid);
+  if (idx < 0) return false;
+  const card = hand[idx];
+
+  // Validate target requirements
+  if (card.target === 'unit' && !targetUnitId) { logEvent('⚠ 需要指定一个己方单位'); return false; }
+  if (card.target === 'hex' && (targetQ===undefined || targetR===undefined)) { logEvent('⚠ 需要指定目标六角格'); return false; }
+
+  // For unit-targeting cards, verify the unit belongs to the player
+  if (card.target === 'unit') {
+    const tu = getUnit(targetUnitId);
+    if (!tu || tu.owner !== player) { logEvent('⚠ 只能对己方单位使用'); return false; }
+  }
+
+  // Create active effect record
+  const activeEff = {
+    cardId: card.id, cardName: card.name, cardIcon: card.icon,
+    effType: card.effType, effVal: card.effVal,
+    targetUnitId: targetUnitId || null, targetQ: targetQ, targetR: targetR,
+    player: player
+  };
+  playerActiveCards[player].push(activeEff);
+
+  // Apply immediate effects
+  if (card.effType === 'fullRepair' && targetUnitId) {
+    const tu = getUnit(targetUnitId);
+    if (tu) { tu.equip = tu.maxEquip; tu.org = tu.maxOrg; }
+  }
+  if (card.effType === 'removeRout') {
+    for (let id in units) {
+      const u = units[id];
+      if (u.owner === player && u.routed) { u.routed = false; logEvent(`  ✅ ${u.name} 恢复士气`); }
+    }
+  }
+  if (card.effType === 'equipRepair') {
+    for (let id in units) {
+      const u = units[id];
+      if (u.owner === player && u.equip > 0) u.equip = Math.min(u.maxEquip, u.equip + card.effVal);
+    }
+    logEvent(`  🔧 所有${player===PLAYER.UK?'英军':'德军'}单位 +${card.effVal}装备`);
+  }
+  if (card.effType === 'navalStrike' && targetQ !== undefined) {
+    const tu = getUnitAt(targetQ, targetR);
+    const dmg = Math.floor(Math.random() * card.effVal) + 1;
+    if (tu && tu.equip > 0) {
+      tu.equip = Math.max(0, tu.equip - dmg);
+      logEvent(`  💥 海军炮击 (${targetQ},${targetR}) ${tu.name} -${dmg}装备`);
+      if (tu.equip <= 0) { removeUnit(tu.id); logEvent(`  💀 ${tu.name} 被炮击摧毁`); }
+    } else {
+      logEvent(`  💥 海军炮击 (${targetQ},${targetR}) — 该格无敌军`);
+    }
+  }
+  // Immediate org repair
+  if (card.effType === 'orgRepair' && targetUnitId) {
+    const tu = getUnit(targetUnitId);
+    if (tu) { tu.org = Math.min(tu.maxOrg, tu.org + card.effVal); logEvent(`  💊 ${tu.name} +${card.effVal}组织度`); }
+  }
+  // Unit buff cards: store in unitCardBuffs
+  if (card.effType === 'unitAtkBonus' && targetUnitId) {
+    if (!unitCardBuffs[targetUnitId]) unitCardBuffs[targetUnitId] = {};
+    unitCardBuffs[targetUnitId].atkBonus = (unitCardBuffs[targetUnitId].atkBonus||0) + card.effVal;
+  }
+  if (card.effType === 'unitMovBonus' && targetUnitId) {
+    if (!unitCardBuffs[targetUnitId]) unitCardBuffs[targetUnitId] = {};
+    unitCardBuffs[targetUnitId].movBonus = (unitCardBuffs[targetUnitId].movBonus||0) + card.effVal;
+  }
+  if (card.effType === 'unitDefBonus' && targetUnitId) {
+    if (!unitCardBuffs[targetUnitId]) unitCardBuffs[targetUnitId] = {};
+    unitCardBuffs[targetUnitId].defBonus = (unitCardBuffs[targetUnitId].defBonus||0) + card.effVal;
+  }
+  if (card.effType === 'supplyImmune' && targetUnitId) {
+    if (!unitCardBuffs[targetUnitId]) unitCardBuffs[targetUnitId] = {};
+    unitCardBuffs[targetUnitId].supplyImmune = card.effVal; // turns remaining
+  }
+
+  // Remove card from hand
+  hand.splice(idx, 1);
+  logEvent(`🃏 ${player===PLAYER.UK?'英军':'德军'} 使用: ${card.icon} ${card.name}`);
+  updateAll();
+  return true;
+}
+window.playCard = playCard;
+
+function discardCard(player, cardUid) {
+  const hand = playerCards[player];
+  const idx = hand.findIndex(c=>c.uid===cardUid);
+  if (idx >= 0) {
+    const card = hand[idx];
+    hand.splice(idx, 1);
+    logEvent(`🃏 ${player===PLAYER.UK?'英军':'德军'} 弃牌: ${card.icon} ${card.name}`);
+    updateAll();
+  }
+}
+window.discardCard = discardCard;
+
+// Apply active card effects to combat/supply/movement
+function hasActiveEffect(player, effType) {
+  return playerActiveCards[player].some(e=>e.effType===effType);
+}
+function getActiveEffectVal(player, effType) {
+  let total = 0;
+  for (let e of playerActiveCards[player]) {
+    if (e.effType === effType) total += (e.effVal||0);
+  }
+  return total;
+}
+
+// Initial draft: each player draws 2, picks 1, gives 1 to opponent
+function startInitialDraft(onComplete) {
+  startDraftForPlayer(PLAYER.UK, function(){
+    startDraftForPlayer(PLAYER.GERMANY, function(){
+      logEvent('🃏 双方战术卡抽取完毕，开战!');
+      if (onComplete) onComplete();
+    });
+  });
+}
+
+function startDraftForPlayer(player, callback) {
+  const cards = [drawTacticalCard(player), drawTacticalCard(player)];
+  // Remove them from inventory — they'll be redistributed
+  const c1 = playerCards[player].pop();
+  const c2 = playerCards[player].pop();
+
+  const modal = document.getElementById('modal');
+  const playerName = player===PLAYER.UK ? '🇬🇧 英军' : '🇩🇪 德军';
+  let html = `<div class="box">`;
+  html += `<h2>🃏 ${playerName} 选取战术卡</h2>`;
+  html += `<p style="color:#aaa;font-size:12px">选一张留下，另一张给对面</p>`;
+  html += `<button class="btn-secondary reinforce-btn" onclick="draftPick(${player},0)" style="display:block;width:100%;margin:4px 0;text-align:left;padding:8px 12px;font-size:12px">`;
+  html += `${c1.icon} <b>${c1.name}</b><br><span style="color:#888;font-size:10px">${c1.desc}</span></button>`;
+  html += `<button class="btn-secondary reinforce-btn" onclick="draftPick(${player},1)" style="display:block;width:100%;margin:4px 0;text-align:left;padding:8px 12px;font-size:12px">`;
+  html += `${c2.icon} <b>${c2.name}</b><br><span style="color:#888;font-size:10px">${c2.desc}</span></button>`;
+  html += `</div>`;
+  modal.innerHTML = html;
+  modal.style.display = 'flex';
+
+  // Store draft state
+  draftMode = {player, cards:[c1,c2], callback};
+}
+window.draftPick = function(player, pickIdx) {
+  if (!draftMode) return;
+  const {cards, callback} = draftMode;
+  const kept = cards[pickIdx];
+  const given = cards[1 - pickIdx];
+  const opponent = player === PLAYER.UK ? PLAYER.GERMANY : PLAYER.UK;
+
+  // Keep selected
+  playerCards[player].push(kept);
+  // Give other to opponent
+  playerCards[opponent].push(given);
+  logEvent(`🃏 ${player===PLAYER.UK?'英军':'德军'} 留下 ${kept.icon}${kept.name}，将 ${given.icon}${given.name} 交给对方`);
+
+  document.getElementById('modal').style.display = 'none';
+  draftMode = null;
+
+  if (callback) callback();
+};
+
+// Clean up card effects at end of turn
+function clearTurnCards() {
+  playerActiveCards = {1:[], 2:[]};
+  // Decrement supplyImmune counters
+  for (let uid in unitCardBuffs) {
+    if (unitCardBuffs[uid].supplyImmune) {
+      unitCardBuffs[uid].supplyImmune--;
+      if (unitCardBuffs[uid].supplyImmune <= 0) delete unitCardBuffs[uid].supplyImmune;
+    }
+    // Clear turn-only buffs
+    delete unitCardBuffs[uid].movBonus;
+    delete unitCardBuffs[uid].defBonus;
+    delete unitCardBuffs[uid].atkBonus;
+  }
+}
+
+// ==============================
+//  MAP INIT
+// ==============================
+function initMap() {
+  hexGrid = [];
+  for (let r = 0; r < ROWS; r++) {
+    hexGrid[r] = [];
+    for (let q = 0; q < COLS; q++) {
+      const ch = MAP_DATA[r][q];
+      const isUpper = ch === ch.toUpperCase() && ch !== ch.toLowerCase();
+      const lowerCh = ch.toLowerCase();
+      const t = T_BY_CH[lowerCh] || TERRAIN.SEA;
+      const road = isUpper && !t.imp;
+      let owner = PLAYER.NONE;
+      // Territory determined by nearest CP owner (set below)
+      const hasForest = FOREST_DATA[r] && FOREST_DATA[r][q] === '1';
+      hexGrid[r][q] = {q, r, terrain:t, road, forest:hasForest, owner, unitId:null, supplyLevel:0};
+    }
+  }
+  capturePoints = CAPTURE_POINTS.map(cp=>({...cp}));
+  // Spread ownership around each CP (2-hex radius)
+  for (let cp of capturePoints) {
+    const h = getHex(cp.q, cp.r);
+    if (h) h.owner = cp.startOwner;
+    for (let n of hexNeighbors(cp.q, cp.r)) {
+      const nh = getHex(n.q, n.r);
+      if (nh && !nh.terrain.imp) nh.owner = cp.startOwner;
+    }
+    // Second ring
+    const visited = new Set([hexKey(cp.q, cp.r)]);
+    for (let n of hexNeighbors(cp.q, cp.r)) visited.add(hexKey(n.q, n.r));
+    for (let n of hexNeighbors(cp.q, cp.r)) {
+      for (let n2 of hexNeighbors(n.q, n.r)) {
+        const nk = hexKey(n2.q, n2.r);
+        if (visited.has(nk)) continue;
+        visited.add(nk);
+        const nh = getHex(n2.q, n2.r);
+        if (nh && !nh.terrain.imp) nh.owner = cp.startOwner;
+      }
+    }
+  }
+}
+
+function getSupplyValue(player) {
+  let total = 0;
+  for (let cp of capturePoints) {
+    const h = getHex(cp.q, cp.r);
+    if (!h || h.owner !== player) continue;
+    total += cp.supply;
+    // Add special effect supply bonus
+    const e = getCPEffect(cp);
+    if (e && e.supplyBonus) total += e.supplyBonus;
+  }
+  return total;
+}
+
+function getControlledCPs(player) {
+  return capturePoints.filter(cp=>{
+    const h = getHex(cp.q, cp.r);
+    return h && h.owner === player;
+  }).length;
+}
+
+// ==============================
+//  UNIT SYSTEM
+// ==============================
+function createUnit(typeId, owner, q, r, name, opts) {
+  const type = UNIT_TYPES[typeId];
+  const id = 'u' + (unitIdCounter++);
+  // Italian units: lower organization (historically poor morale)
+  const isItalian = opts && opts.nation === 'ita';
+  const maxOrg = isItalian ? Math.floor(type.org * 0.60) : type.org;
+  const unit = {
+    id, typeId, owner, q, r,
+    name: name || type.name,
+    equip: type.equip, maxEquip: type.equip,
+    org: maxOrg, maxOrg: maxOrg,
+    hasMoved: false, hasFought: false,
+    isSupplied: true,
+    routed: false,         // rout status
+    order: null,
+    nation: (opts && opts.nation) || null,
+  };
+  units[id] = unit;
+  const h = getHex(q, r);
+  if (h) h.unitId = id;
+  return unit;
+}
+
+function getUnitAt(q, r) {
+  const h = getHex(q, r);
+  return h && h.unitId ? units[h.unitId] : null;
+}
+
+function getUnit(unitId) {
+  return units[unitId] || null;
+}
+
+function removeUnit(unitId) {
+  const u = units[unitId];
+  if (!u) return;
+  const h = getHex(u.q, u.r);
+  if (h && h.unitId === unitId) h.unitId = null;
+  delete units[unitId];
+}
+
+function getUnitType(unit) {
+  return UNIT_TYPES[unit.typeId];
+}
+
+function getReinfCost(typeId) {
+  return REINF_COST[typeId] || 2;
+}
+
+function initUnits() {
+  units = {};
+  unitIdCounter = 1;
+  for (let bu of BRITISH_UNITS) createUnit(bu.type, PLAYER.UK, bu.q, bu.r, bu.name, {nation: bu.nation || null});
+  for (let gu of GERMAN_UNITS) createUnit(gu.type, PLAYER.GERMANY, gu.q, gu.r, gu.name, {nation: gu.nation || null});
+  unitOrders = {};
+  reinfPoints = {1:0, 2:0};
+}
+
+// ==============================
+//  PATHFINDING (A*)
+// ==============================
+function getMoveCost(q, r, unit, fromQ, fromR) {
+  const h = getHex(q, r);
+  if (!h || h.terrain.imp) return 99;
+  const targetUnit = getUnitAt(q, r);
+  if (targetUnit && targetUnit.owner !== unit.owner) return 99;
+  let cost = h.road ? 0.5 : h.terrain.mc;
+  // River edge crossing penalty: +2 when crossing a river line between hexes
+  if (fromQ !== undefined && fromR !== undefined) {
+    if (hasRiverEdge(fromQ, fromR, q, r) && !hasActiveEffect(unit.owner, 'riverRoad')) {
+      cost += 2;
+    }
+  }
+  if (h.forest) cost += 1;  // forest adds +1 move cost to any terrain
+  // Special: Caltagirone road hub — if owner controls it, all move costs -0.5 (min 0.5)
+  const caltCP = capturePoints.find(cp=>cp.effect==='caltagirone');
+  if (caltCP) {
+    const caltH = getHex(caltCP.q, caltCP.r);
+    if (caltH && caltH.owner === unit.owner) cost = Math.max(0.5, cost - 0.5);
+  }
+  const ut = getUnitType(unit);
+  if (!ut.noZOC) {
+    const enemies = hexNeighbors(q,r).filter(n=>{
+      const u2 = getUnitAt(n.q,n.r);
+      return u2 && u2.owner !== unit.owner;
+    });
+    if (enemies.length > 0) cost += 1;
+  }
+  return cost;
+}
+
+function findPath(fromQ, fromR, toQ, toR, unit) {
+  if (!isValidHex(fromQ, fromR) || !isValidHex(toQ, toR)) return null;
+  const targetUnit = getUnitAt(toQ, toR);
+  if (targetUnit && targetUnit.owner === unit.owner && !(fromQ===toQ && fromR===toR)) return null;
+
+  const startKey = hexKey(fromQ, fromR);
+  const endKey = hexKey(toQ, toR);
+  if (startKey === endKey) return [{q:toQ, r:toR}];
+
+  const openSet = new Map();
+  const cameFrom = new Map();
+  const gScore = new Map();
+  const fScore = new Map();
+
+  gScore.set(startKey, 0);
+  fScore.set(startKey, hexDistance(fromQ, fromR, toQ, toR));
+  openSet.set(startKey, fScore.get(startKey));
+
+  while (openSet.size > 0) {
+    let currentKey = null, lowestF = Infinity;
+    for (let [k, v] of openSet) { if (v < lowestF) { lowestF = v; currentKey = k; } }
+    if (currentKey === endKey) break;
+    openSet.delete(currentKey);
+    const [cq, cr] = currentKey.split(',').map(Number);
+
+    for (let n of hexNeighbors(cq, cr)) {
+      const nk = hexKey(n.q, n.r);
+      const cost = getMoveCost(n.q, n.r, unit, cq, cr);
+      if (cost >= 99) continue;
+      const nu = getUnitAt(n.q, n.r);
+      if (nu && nu.owner !== unit.owner && nk !== endKey) continue;
+      if (nu && nu.owner === unit.owner && nk !== endKey) continue;
+
+      const tentG = (gScore.get(currentKey)||0) + cost;
+      if (tentG < (gScore.get(nk)||Infinity)) {
+        cameFrom.set(nk, currentKey);
+        gScore.set(nk, tentG);
+        fScore.set(nk, tentG + hexDistance(n.q, n.r, toQ, toR));
+        openSet.set(nk, fScore.get(nk));
+      }
+    }
+  }
+
+  if (!cameFrom.has(endKey)) return null;
+  const path = [];
+  let ck = endKey;
+  while (ck && ck !== startKey) {
+    const [cq, cr] = ck.split(',').map(Number);
+    path.unshift({q:cq, r:cr});
+    ck = cameFrom.get(ck);
+  }
+  path.unshift({q:fromQ, r:fromR});
+  return path;
+}
+
+// Calculate all hexes a unit can reach within its movement points (BFS)
+// movMultiplier: 1.0=normal, 2.0=forced march/retreat, 0.5=advance & fire
+function getReachableHexes(unit, movMultiplier = 1.0) {
+  const reachable = new Map(); // key -> remaining moves (only for stoppable hexes)
+  const visited = new Set();   // key -> visited (includes pass-through hexes)
+  const startKey = hexKey(unit.q, unit.r);
+  const ut = getUnitType(unit);
+  let maxMoves = Math.floor(ut.mov * movMultiplier);
+  // Tactical card: unit movement bonus (forced march order)
+  if (unitCardBuffs[unit.id] && unitCardBuffs[unit.id].movBonus) {
+    maxMoves += unitCardBuffs[unit.id].movBonus;
+  }
+  reachable.set(startKey, maxMoves);
+  visited.add(startKey);
+
+  const queue = [{q:unit.q, r:unit.r, movesLeft:maxMoves}];
+  while (queue.length > 0) {
+    const {q, r, movesLeft} = queue.shift();
+    for (let n of hexNeighbors(q, r)) {
+      const nk = hexKey(n.q, n.r);
+      if (visited.has(nk)) continue;
+      visited.add(nk);
+      const targetUnit = getUnitAt(n.q, n.r);
+      // Enemy-occupied hexes are blocked (unless it's the start hex)
+      if (targetUnit && targetUnit.owner !== unit.owner) continue;
+      const cost = getMoveCost(n.q, n.r, unit, q, r);
+      if (cost >= 99) continue;
+      const remaining = movesLeft - cost;
+      if (remaining >= 0) {
+        // Can stop here only if empty (not occupied by friendly unit)
+        if (!targetUnit || targetUnit.owner !== unit.owner) {
+          reachable.set(nk, remaining);
+        }
+        // Continue BFS from this hex regardless (pass through friendly units)
+        if (remaining > 0) {
+          queue.push({q:n.q, r:n.r, movesLeft:remaining});
+        }
+      }
+    }
+  }
+  return reachable;
+}
+
+// ==============================
+//  RENDERING
+// ==============================
+function resizeCanvas() {
+  const wrap = document.getElementById('canvas-wrap');
+  const w = wrap.clientWidth || window.innerWidth - 240;
+  const h = wrap.clientHeight || window.innerHeight - 100;
+  canvas.width = Math.max(800, w);
+  canvas.height = Math.max(600, h);
+}
+window.addEventListener('resize', resizeCanvas);
+
+function worldToScreen(wx, wy) {
+  return {x: wx * zoom + camX + canvas.width/2, y: wy * zoom + camY + canvas.height/2};
+}
+function screenToWorld(sx, sy) {
+  return {x: (sx - camX - canvas.width/2) / zoom, y: (sy - camY - canvas.height/2) / zoom};
+}
+
+function getViewer() {
+  // Return which player's perspective we're viewing from
+  // During resolve phase, show everything (PLAYER.NONE)
+  if (currentPhase === PHASE.RESOLVE) return PLAYER.NONE;
+  return currentPlayer;
+}
+
+function drawHex(ctx, q, r) {
+  const h = getHex(q, r);
+  if (!h) return;
+  const viewer = getViewer();
+  const isSea = h.terrain.imp;
+  const visible = viewer === PLAYER.NONE || isHexVisible(q, r, viewer);
+  const explored = viewer === PLAYER.NONE || isHexExplored(q, r, viewer);
+
+  const wc = hexToPixel(q, r);
+  const wcorners = hexCorners(wc.x, wc.y);
+  const sc = wcorners.map(c=>worldToScreen(c.x, c.y));
+  const center = worldToScreen(wc.x, wc.y);
+
+  ctx.beginPath();
+  ctx.moveTo(sc[0].x, sc[0].y);
+  for (let i = 1; i < 6; i++) ctx.lineTo(sc[i].x, sc[i].y);
+  ctx.closePath();
+
+  // FOW: binary — visible (normal) or dimmed (65% brightness)
+  let fillColor = h.terrain.color;
+  if (!visible) {
+    fillColor = darkenColor(h.terrain.color, 0.65);
+  }
+
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+
+  // Forest always visible (permanent terrain feature)
+  if (h.forest) {
+    ctx.fillStyle = visible ? 'rgba(34,139,34,0.55)' : 'rgba(34,139,34,0.30)';
+    ctx.beginPath();
+    ctx.arc(center.x, center.y - 3*zoom, Math.max(3, HEX_SIZE*0.22*zoom), 0, Math.PI*2);
+    ctx.fill();
+  }
+  // Road — only when visible
+  if (visible) {
+    if (h.road) {
+      // Draw road lines to adjacent road hexes
+      ctx.strokeStyle = 'rgba(180,140,100,0.70)';
+      ctx.lineWidth = Math.max(2.5, 4 * zoom);
+      ctx.beginPath();
+      for (let n of hexNeighbors(q, r)) {
+        const nh = getHex(n.q, n.r);
+        if (nh && nh.road) {
+          const nc = hexToPixel(n.q, n.r);
+          const ns = worldToScreen(nc.x, nc.y);
+          ctx.moveTo(center.x, center.y);
+          ctx.lineTo(ns.x, ns.y);
+        }
+      }
+      ctx.stroke();
+    }
+  }
+
+  // River edges — thick blue lines along hex sides
+  if (visible) {
+    for (let e of EDGE_DEFS) {
+      const nq = q + e.dq, nr = r + e.dr;
+      if (hasRiverEdge(q, r, nq, nr)) {
+        // Only draw from the lexicographically first hex to avoid double-drawing
+        const key = edgeKey(q, r, nq, nr);
+        const [fQ, fR] = key.split('|')[0].split(',').map(Number);
+        if (q === fQ && r === fR) {
+          ctx.beginPath();
+          ctx.moveTo(sc[e.c1].x, sc[e.c1].y);
+          ctx.lineTo(sc[e.c2].x, sc[e.c2].y);
+          ctx.strokeStyle = '#2a5a7a';
+          ctx.lineWidth = Math.max(3, 4 * zoom);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  // Hex border
+  ctx.strokeStyle = visible ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = Math.max(0.8, 1.0 * zoom);
+  ctx.stroke();
+
+  // Supply overlay — only visible hexes and for current player
+  if (visible && h.supplyLevel > 0.2 && h.owner === currentPlayer) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.min(0.25, h.supplyLevel*0.15)})`;
+    ctx.fill();
+  }
+
+  // Capture point marker — only on visible hexes
+  if (visible) {
+    const cp = capturePoints.find(c=>c.q===q && c.r===r);
+    if (cp) {
+      const isCity = cp.type === 'city' || cp.supply >= 4;
+      const owner = h.owner;
+      const isUK = owner === PLAYER.UK;
+      const isDE = owner === PLAYER.GERMANY;
+      const ownerCol = isUK ? '#2980b9' : isDE ? '#c0392b' : '#555';
+
+      if (isCity) {
+        // City: large diamond marker with glow
+        const dsz = 8 * zoom;
+        ctx.fillStyle = ownerCol;
+        ctx.shadowColor = isUK ? 'rgba(41,128,185,0.7)' : isDE ? 'rgba(192,57,43,0.7)' : 'rgba(100,100,100,0.5)';
+        ctx.shadowBlur = 6 * zoom;
+        ctx.beginPath();
+        ctx.moveTo(center.x, center.y - dsz);
+        ctx.lineTo(center.x + dsz, center.y);
+        ctx.lineTo(center.x, center.y + dsz);
+        ctx.lineTo(center.x - dsz, center.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        // White outline
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5 * zoom;
+        ctx.stroke();
+        // Star icon inside
+        if (zoom > 0.4) {
+          ctx.fillStyle = '#fff';
+          ctx.font = `bold ${Math.max(8, 10*zoom)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('★', center.x, center.y);
+        }
+      } else {
+        // Town: rounded square marker
+        const tsz = 5.5 * zoom;
+        const r = 1.5 * zoom;
+        ctx.fillStyle = ownerCol;
+        ctx.shadowColor = isUK ? 'rgba(41,128,185,0.4)' : isDE ? 'rgba(192,57,43,0.4)' : 'rgba(100,100,100,0.3)';
+        ctx.shadowBlur = 3 * zoom;
+        ctx.beginPath();
+        ctx.moveTo(center.x - tsz + r, center.y - tsz);
+        ctx.lineTo(center.x + tsz - r, center.y - tsz);
+        ctx.arcTo(center.x + tsz, center.y - tsz, center.x + tsz, center.y - tsz + r, r);
+        ctx.lineTo(center.x + tsz, center.y + tsz - r);
+        ctx.arcTo(center.x + tsz, center.y + tsz, center.x + tsz - r, center.y + tsz, r);
+        ctx.lineTo(center.x - tsz + r, center.y + tsz);
+        ctx.arcTo(center.x - tsz, center.y + tsz, center.x - tsz, center.y + tsz - r, r);
+        ctx.lineTo(center.x - tsz, center.y - tsz + r);
+        ctx.arcTo(center.x - tsz, center.y - tsz, center.x - tsz + r, center.y - tsz, r);
+        ctx.closePath();
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 1 * zoom;
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+function drawUnit(ctx, unit) {
+  const wp = hexToPixel(unit.q, unit.r);
+  const s = worldToScreen(wp.x, wp.y);
+  const ut = getUnitType(unit);
+  const z = Math.max(0.5, zoom);
+
+  // NATO rectangular counter — ~70% of hex, leaving terrain visible around edges
+  const cw = HEX_SIZE * 1.6 * z;   // counter width
+  const ch = HEX_SIZE * 0.9 * z;   // counter height
+  const cx = s.x - cw/2;
+  const cy = s.y - ch/2;
+  const pad = 1.5 * z;
+
+  // Counter background (country color)
+  ctx.fillStyle = unit.owner===PLAYER.UK?'#1a3a5e':'#3a1a1a';
+  ctx.fillRect(cx, cy, cw, ch);
+
+  // Border — color indicates supply status; rout overrides
+  ctx.strokeStyle = unit.isSupplied ? '#556' : '#e74c3c';
+  ctx.lineWidth = Math.max(1, 1.5 * z);
+  ctx.strokeRect(cx, cy, cw, ch);
+
+  // Routed indicator: flashing red border
+  if (unit.routed) {
+    const flash = Math.sin(Date.now() / 200) * 0.4 + 0.6; // oscillate 0.2-1.0
+    ctx.strokeStyle = `rgba(255,40,40,${flash})`;
+    ctx.lineWidth = Math.max(2, 3 * z);
+    ctx.strokeRect(cx - 1, cy - 1, cw + 2, ch + 2);
+  }
+
+  // Top section: NATO icon + unit type name
+  const topH = ch * 0.40;
+  ctx.fillStyle = unit.owner===PLAYER.UK?'#1a5276':'#641e16';
+  ctx.fillRect(cx, cy, cw, topH);
+
+  // NATO symbol (left side of top section)
+  ctx.fillStyle = ut.color;
+  ctx.font = `bold ${Math.max(8, 12*z)}px sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(ut.icon, cx + pad*2, cy + topH/2);
+
+  // Unit type abbreviation (right side of top section)
+  ctx.fillStyle = '#ddd';
+  ctx.font = `${Math.max(6, 9*z)}px sans-serif`;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(ut.id.toUpperCase(), cx + cw - pad*2, cy + topH/2);
+
+  // Equipment bar (green)
+  const barH = Math.max(2, ch * 0.18);
+  const barY1 = cy + topH + pad;
+  const barW = cw - pad*4;
+  const barX = cx + pad*2;
+  ctx.fillStyle = '#222';
+  ctx.fillRect(barX, barY1, barW, barH);
+  const equipPct = unit.equip / unit.maxEquip;
+  ctx.fillStyle = equipPct > 0.6 ? '#27ae60' : equipPct > 0.3 ? '#f39c12' : '#e74c3c';
+  ctx.fillRect(barX, barY1, barW * equipPct, barH);
+
+  // Organization bar (blue)
+  const barY2 = barY1 + barH + 1*z;
+  ctx.fillStyle = '#222';
+  ctx.fillRect(barX, barY2, barW, barH);
+  const orgPct = unit.org / unit.maxOrg;
+  ctx.fillStyle = orgPct > 0.5 ? '#2980b9' : orgPct > 0.2 ? '#f39c12' : '#e74c3c';
+  ctx.fillRect(barX, barY2, barW * orgPct, barH);
+
+  // Bottom: unit size indicator
+  const botY = barY2 + barH + 1*z;
+  ctx.fillStyle = '#999';
+  ctx.font = `${Math.max(5, 7*z)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('II', cx + cw/2, (botY + cy + ch)/2);  // II = battalion
+
+  // Order marker (small triangle at top-right)
+  if (unit.order) {
+    const showOrder = currentPhase === PHASE.RESOLVE ||
+      (currentPhase === PHASE.ORDERS_UK && currentPlayer === PLAYER.UK) ||
+      (currentPhase === PHASE.ORDERS_DE && currentPlayer === PLAYER.GERMANY);
+    if (showOrder) {
+      const col = unit.order.type==='move'?'#2ecc71':unit.order.type==='attack'?'#e74c3c':'#f39c12';
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.moveTo(cx + cw, cy);
+      ctx.lineTo(cx + cw - 6*z, cy);
+      ctx.lineTo(cx + cw, cy + 6*z);
+      ctx.fill();
+    }
+  }
+}
+
+function shadeColor(color, percent) {
+  const num = parseInt(color.replace('#',''), 16);
+  const amt = Math.round(2.55 * percent);
+  const R = Math.min(255, Math.max(0, (num>>16) + amt));
+  const G = Math.min(255, Math.max(0, (num>>8 & 0xFF) + amt));
+  const B = Math.min(255, Math.max(0, (num & 0xFF) + amt));
+  return '#' + (0x1000000 + R*0x10000 + G*0x100 + B).toString(16).slice(1);
+}
+
+// Darken a color by scaling RGB channels (0.0-1.0), preserves hue
+function darkenColor(hex, scale) {
+  const num = parseInt(hex.replace('#',''), 16);
+  let R = (num>>16) & 0xFF, G = (num>>8) & 0xFF, B = num & 0xFF;
+  R = Math.round(R * scale);
+  G = Math.round(G * scale);
+  B = Math.round(B * scale);
+  return '#' + (0x1000000 + R*0x10000 + G*0x100 + B).toString(16).slice(1);
+}
+
+function render() {
+  if (canvas.width < 10 || canvas.height < 10) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Ocean background (different from sea hex #1a3a5c)
+  ctx.fillStyle = '#0e2240';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Accurate frustum culling — use pixelToHex on all 4 screen corners
+  const corners = [
+    screenToWorld(0, 0),
+    screenToWorld(canvas.width, 0),
+    screenToWorld(0, canvas.height),
+    screenToWorld(canvas.width, canvas.height)
+  ].map(w => pixelToHex(w.x, w.y));
+
+  const qMin = Math.max(0, Math.min(...corners.map(c=>c.q)) - 2);
+  const qMax = Math.min(COLS-1, Math.max(...corners.map(c=>c.q)) + 2);
+  const rMin = Math.max(0, Math.min(...corners.map(c=>c.r)) - 2);
+  const rMax = Math.min(ROWS-1, Math.max(...corners.map(c=>c.r)) + 2);
+
+  for (let r = rMin; r <= rMax; r++) {
+    for (let q = qMin; q <= qMax; q++) {
+      drawHex(ctx, q, r);
+    }
+  }
+
+  // Deployable range blue border (deployment phase)
+  if ((currentPhase === PHASE.DEPLOY_UK || currentPhase === PHASE.DEPLOY_DE)) {
+    const pp = getPhasePlayer();
+    if ((reinfPoints[pp] || 0) > 0) {
+      const deployable = new Set();
+      for (let r = rMin; r <= rMax; r++) {
+        for (let q = qMin; q <= qMax; q++) {
+          const h = getHex(q, r);
+          if (h && h.owner === pp && !h.unitId) deployable.add(hexKey(q, r));
+        }
+      }
+      if (deployable.size > 0) {
+        const lineW = Math.max(2.5, 3.5 * zoom);
+        for (let key of deployable) {
+          const [dq, dr] = key.split(',').map(Number);
+          const wp = hexToPixel(dq, dr);
+          const wcorners = hexCorners(wp.x, wp.y);
+          const sc = wcorners.map(c => worldToScreen(c.x, c.y));
+          for (let e of EDGE_DEFS) {
+            const nk = hexKey(dq + e.dq, dr + e.dr);
+            if (!deployable.has(nk)) {
+              ctx.beginPath();
+              ctx.moveTo(sc[e.c1].x, sc[e.c1].y);
+              ctx.lineTo(sc[e.c2].x, sc[e.c2].y);
+              ctx.strokeStyle = '#3498db';
+              ctx.lineWidth = lineW;
+              ctx.setLineDash([5*zoom, 3*zoom]);
+              ctx.stroke();
+              ctx.setLineDash([]);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Draw movement/attack range preview for selected unit (orders phase only)
+  if (selectedUnitId && !pendingOrder && (currentPhase===PHASE.ORDERS_UK||currentPhase===PHASE.ORDERS_DE)) {
+    const selUnit = getUnit(selectedUnitId);
+    if (selUnit && selUnit.owner === getPhasePlayer()) {
+      const selType = getUnitType(selUnit);
+      // ---- ATTACK: highlight enemy units within weapon range ----
+      if (selectedActionType === ACTION_TYPE.ATTACK) {
+        const rng = selType.rng || 1;
+        for (let id in units) {
+          const eu = units[id];
+          if (eu.owner === selUnit.owner || eu.equip <= 0) continue;
+          const d = hexDistance(selUnit.q, selUnit.r, eu.q, eu.r);
+          if (d <= rng) {
+            const wp = hexToPixel(eu.q, eu.r);
+            const wcorners = hexCorners(wp.x, wp.y);
+            const sc = wcorners.map(c=>worldToScreen(c.x, c.y));
+            ctx.beginPath();
+            ctx.moveTo(sc[0].x, sc[0].y);
+            for (let i=1;i<6;i++) ctx.lineTo(sc[i].x, sc[i].y);
+            ctx.closePath();
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = Math.max(2.5, 3.5 * zoom);
+            ctx.setLineDash([4*zoom, 2*zoom]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            // Crosshair inside
+            const center = worldToScreen(wp.x, wp.y);
+            const cr = HEX_SIZE * 0.35 * zoom;
+            ctx.strokeStyle = 'rgba(231,76,60,0.55)';
+            ctx.lineWidth = Math.max(1.5, 2 * zoom);
+            ctx.beginPath(); ctx.moveTo(center.x-cr, center.y-cr); ctx.lineTo(center.x+cr, center.y+cr); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(center.x+cr, center.y-cr); ctx.lineTo(center.x-cr, center.y+cr); ctx.stroke();
+          }
+        }
+      } else {
+        // ---- MOVE / FORCED MARCH / RAPID WITHDRAW / ADVANCE FIRE: show movement range ----
+        const movMult = selectedActionType === ACTION_TYPE.FORCED_MARCH || selectedActionType === ACTION_TYPE.RAPID_WITHDRAW ? 2.0 :
+                         selectedActionType === ACTION_TYPE.ADVANCE_FIRE ? 0.5 : 1.0;
+        // Stroke colors per action type
+        const edgeColors = {
+          [ACTION_TYPE.MOVE]: '#2ecc71',           // green
+          [ACTION_TYPE.FORCED_MARCH]: '#f39c12',   // orange
+          [ACTION_TYPE.RAPID_WITHDRAW]: '#3498db', // blue
+          [ACTION_TYPE.ADVANCE_FIRE]: '#e74c3c',   // red
+        };
+        const edgeCol = edgeColors[selectedActionType] || edgeColors[ACTION_TYPE.MOVE];
+        const reachable = getReachableHexes(selUnit, movMult);
+        // Build a Set for fast boundary check
+        const reachableSet = new Set();
+        for (let [key] of reachable) reachableSet.add(key);
+        const lineW = Math.max(2.5, 3.5 * zoom);
+        for (let [key] of reachable) {
+          const [rq, rr] = key.split(',').map(Number);
+          // Skip the unit's own hex — draw boundary around the rest
+          if (rq === selUnit.q && rr === selUnit.r) continue;
+          const wp = hexToPixel(rq, rr);
+          const wcorners = hexCorners(wp.x, wp.y);
+          const sc = wcorners.map(c=>worldToScreen(c.x, c.y));
+          for (let e of EDGE_DEFS) {
+            const nk = hexKey(rq + e.dq, rr + e.dr);
+            if (!reachableSet.has(nk)) {
+              // External edge — draw bold line
+              ctx.beginPath();
+              ctx.moveTo(sc[e.c1].x, sc[e.c1].y);
+              ctx.lineTo(sc[e.c2].x, sc[e.c2].y);
+              ctx.strokeStyle = edgeCol;
+              ctx.lineWidth = lineW;
+              ctx.stroke();
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Draw pending move path
+  if (pendingOrder && pendingOrder.type==='move' && pendingOrder.path && pendingOrder.path.length > 1) {
+    const path = pendingOrder.path;
+    ctx.beginPath();
+    for (let i = 0; i < path.length; i++) {
+      const wp = hexToPixel(path[i].q, path[i].r);
+      const s = worldToScreen(wp.x, wp.y);
+      if (i===0) ctx.moveTo(s.x, s.y);
+      else ctx.lineTo(s.x, s.y);
+    }
+    ctx.strokeStyle = '#2ecc71';
+    ctx.lineWidth = 3*zoom;
+    ctx.setLineDash([6*zoom, 3*zoom]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Arrow at end
+    const last = path[path.length-1];
+    const lwp = hexToPixel(last.q, last.r);
+    const lp = worldToScreen(lwp.x, lwp.y);
+    ctx.fillStyle = '#2ecc71';
+    ctx.beginPath(); ctx.arc(lp.x, lp.y, 4*zoom, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Pending attack target highlight
+  if (pendingOrder && pendingOrder.type==='attack') {
+    const twp = hexToPixel(pendingOrder.toQ, pendingOrder.toR);
+    const ts = worldToScreen(twp.x, twp.y);
+    ctx.strokeStyle = '#e74c3c';
+    ctx.lineWidth = 3*zoom;
+    ctx.setLineDash([4*zoom, 2*zoom]);
+    ctx.beginPath(); ctx.arc(ts.x, ts.y, HEX_SIZE*0.7*zoom, 0, Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Draw all units (only visible ones)
+  const viewer = getViewer();
+  for (let id in units) {
+    const u = units[id];
+    // Always show own units; only show enemy units if they're visible
+    if (u.owner === viewer || viewer === PLAYER.NONE || isHexVisible(u.q, u.r, viewer)) {
+      drawUnit(ctx, u);
+    }
+  }
+
+  // Selection highlight
+  if (selectedUnitId) {
+    const su = getUnit(selectedUnitId);
+    if (su) {
+      const wp = hexToPixel(su.q, su.r);
+      const wcorners = hexCorners(wp.x, wp.y);
+      const sc = wcorners.map(c=>worldToScreen(c.x, c.y));
+      ctx.beginPath();
+      ctx.moveTo(sc[0].x, sc[0].y);
+      for (let i=1;i<6;i++) ctx.lineTo(sc[i].x, sc[i].y);
+      ctx.closePath();
+      ctx.strokeStyle = '#f1c40f';
+      ctx.lineWidth = 3*zoom;
+      ctx.setLineDash([3*zoom, 2*zoom]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+}
+
+// ==============================
+//  INPUT
+// ==============================
+function getHexFromEvent(e) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left;
+  const sy = e.clientY - rect.top;
+  const w = screenToWorld(sx, sy);
+  return pixelToHex(w.x, w.y);
+}
+
+canvas.addEventListener('mousedown', function(e) {
+  if (e.button === 0) {
+    const hq = getHexFromEvent(e);
+    if (hq && isValidHex(hq.q, hq.r)) {
+      // Check if it's this player's turn
+      if (isMyTurn()) handleHexClick(hq.q, hq.r);
+      else logEvent('⚠ 现在是对方回合，请等待');
+    }
+  } else if (e.button === 1 || e.button === 2) {
+    isDragging = true;
+    dragStartX = e.clientX; dragStartY = e.clientY;
+    dragCamX = camX; dragCamY = camY;
+    document.getElementById('canvas-wrap').classList.add('dragging');
+    e.preventDefault();
+  }
+});
+
+canvas.addEventListener('mousemove', function(e) {
+  mouseX = e.clientX; mouseY = e.clientY;
+  if (isDragging) {
+    camX = dragCamX + (e.clientX - dragStartX);
+    camY = dragCamY + (e.clientY - dragStartY);
+  }
+  const hq = getHexFromEvent(e);
+  if (hq && isValidHex(hq.q, hq.r)) {
+    const h = getHex(hq.q, hq.r);
+    const u = getUnitAt(hq.q, hq.r);
+    const cp = capturePoints.find(c=>c.q===hq.q && c.r===hq.r);
+    let tip = `(${hq.q},${hq.r}) ${h.terrain.name}`;
+    if (h.road) tip += ' +道路';
+    if (cp) {
+      tip += `\n📍 ${cp.name} 补给:${cp.supply}`;
+      const e = getCPEffect(cp);
+      if (e && e.name) tip += `\n⚡ ${e.name}`;
+    }
+    if (h.supplyLevel > 0.1) tip += `\n补给水平: ${Math.round(h.supplyLevel*100)}%`;
+    if (u) {
+      const viewer = getViewer();
+      // Only show enemy unit details if visible
+      if (u.owner === viewer || viewer === PLAYER.NONE || isHexVisible(hq.q, hq.r, viewer)) {
+        const ut = getUnitType(u);
+        tip += `\n${u.owner===PLAYER.UK?'🇬🇧':'🇩🇪'} ${u.name}`;
+        tip += `\n${ut.icon} ${ut.name} | 装备:${u.equip}/${u.maxEquip} 组织:${u.org}/${u.maxOrg}`;
+        if (u.routed) tip += ' [溃退]';
+        if (u.order) tip += `\n📋 命令: ${u.order.type==='move'?'移动':'攻击'}→(${u.order.toQ},${u.order.toR})`;
+      } else {
+        tip += '\n❓ 未知单位 (视野外)';
+      }
+    }
+    showTooltip(e.clientX+12, e.clientY+12, tip);
+  } else {
+    hideTooltip();
+  }
+});
+
+canvas.addEventListener('mouseup', function() {
+  if (isDragging) { isDragging = false; document.getElementById('canvas-wrap').classList.remove('dragging'); }
+});
+canvas.addEventListener('wheel', function(e) {
+  e.preventDefault();
+  const oldZoom = zoom;
+  zoom = Math.max(0.55, Math.min(3.0, zoom * (e.deltaY > 0 ? 0.9 : 1.1)));
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  camX = mx - (mx - camX) * (zoom / oldZoom);
+  camY = my - (my - camY) * (zoom / oldZoom);
+});
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+function showTooltip(x, y, text) {
+  const tt = document.getElementById('tooltip');
+  tt.innerHTML = text.replace(/\n/g,'<br>');
+  tt.style.left = x+'px'; tt.style.top = y+'px';
+  tt.style.display = 'block';
+}
+function hideTooltip() { document.getElementById('tooltip').style.display = 'none'; }
+
+// ==============================
+//  TURN STATE HELPERS
+// ==============================
+function isMyTurn() {
+  if (currentPhase === PHASE.RESOLVE) return false;
+  // AI phases: the human cannot interact
+  if (isAIPhase()) return false;
+  if (currentPhase === PHASE.DEPLOY_UK && currentPlayer === PLAYER.UK) return true;
+  if (currentPhase === PHASE.DEPLOY_DE && currentPlayer === PLAYER.GERMANY) return true;
+  if (currentPhase === PHASE.ORDERS_UK && currentPlayer === PLAYER.UK) return true;
+  if (currentPhase === PHASE.ORDERS_DE && currentPlayer === PLAYER.GERMANY) return true;
+  return false;
+}
+
+function getPhasePlayer() {
+  if (currentPhase === PHASE.DEPLOY_UK || currentPhase === PHASE.ORDERS_UK) return PLAYER.UK;
+  if (currentPhase === PHASE.DEPLOY_DE || currentPhase === PHASE.ORDERS_DE) return PLAYER.GERMANY;
+  return PLAYER.NONE;
+}
+
+// ==============================
+//  HANDLE CLICKS
+// ==============================
+function handleHexClick(q, r) {
+  if (currentPhase === PHASE.RESOLVE) return;
+
+  const h = getHex(q, r);
+  if (!h || h.terrain.imp) return;
+
+  const clickedUnit = getUnitAt(q, r);
+  const phasePlayer = getPhasePlayer();
+
+  // --- CARD TARGETING ---
+  if (selectedCardUid) {
+    const hand = playerCards[phasePlayer] || [];
+    const card = hand.find(c=>c.uid===selectedCardUid);
+    if (card) {
+      if (card.target === 'unit' && clickedUnit && clickedUnit.owner === phasePlayer) {
+        playCard(phasePlayer, selectedCardUid, clickedUnit.id);
+        selectedCardUid = null;
+        updateAll();
+        return;
+      }
+      if (card.target === 'hex') {
+        playCard(phasePlayer, selectedCardUid, null, q, r);
+        selectedCardUid = null;
+        updateAll();
+        return;
+      }
+      if (card.target === 'unit' && (!clickedUnit || clickedUnit.owner !== phasePlayer)) {
+        logEvent('⚠ 请点击己方单位来使用此卡');
+        return;
+      }
+    } else {
+      selectedCardUid = null;
+    }
+  }
+
+  // --- DEPLOY PHASE ---
+  if (currentPhase === PHASE.DEPLOY_UK || currentPhase === PHASE.DEPLOY_DE) {
+    if (!clickedUnit && h.owner === phasePlayer && reinfPoints[phasePlayer] > 0) {
+      showDeployModal(q, r);
+    } else if (clickedUnit && h.owner === phasePlayer) {
+      logEvent('该格已有单位');
+    } else if (h.owner !== phasePlayer) {
+      logEvent('只能在己方控制的格子上部署');
+    }
+    return;
+  }
+
+  // --- ORDERS PHASE ---
+  if (currentPhase === PHASE.ORDERS_UK || currentPhase === PHASE.ORDERS_DE) {
+    if (!selectedUnitId) {
+      if (clickedUnit && clickedUnit.owner === phasePlayer) {
+        selectUnit(clickedUnit.id);
+      }
+      return;
+    }
+
+    const selUnit = getUnit(selectedUnitId);
+    if (!selUnit) { selectedUnitId = null; pendingOrder = null; updateAll(); return; }
+
+    // Click on own unit -> switch selection
+    if (clickedUnit && clickedUnit.owner === phasePlayer) {
+      selectUnit(clickedUnit.id);
+      return;
+    }
+
+    // Click on enemy unit → depends on selected action type
+    if (clickedUnit && clickedUnit.owner !== phasePlayer) {
+      handleEnemyTarget(selUnit, q, r, clickedUnit, phasePlayer);
+      return;
+    }
+
+    // Click on empty/friendly hex → depends on selected action type
+    if (!clickedUnit || clickedUnit.owner === phasePlayer) {
+      if (clickedUnit && clickedUnit.owner === phasePlayer && hexDistance(selUnit.q, selUnit.r, q, r) === 0 &&
+          selectedActionType === ACTION_TYPE.MOVE) {
+        return; // clicking self during standard move
+      }
+      handleMoveTarget(selUnit, q, r, clickedUnit, phasePlayer);
+    }
+  }
+}
+
+// Helper: handle clicking on an enemy hex during orders phase
+function handleEnemyTarget(selUnit, q, r, clickedUnit, phasePlayer) {
+  const selType = getUnitType(selUnit);
+  // Attack action: direct attack is always available
+  if (selectedActionType === ACTION_TYPE.ATTACK) {
+    const dist = hexDistance(selUnit.q, selUnit.r, q, r);
+    if (dist <= selType.rng) {
+      giveAttackOrder(selUnit, q, r, clickedUnit, ACTION_TYPE.ATTACK);
+    } else {
+      logEvent('目标超出射程');
+    }
+    return;
+  }
+  // Advance & Fire: move adjacent to enemy, then auto-attack
+  if (selectedActionType === ACTION_TYPE.ADVANCE_FIRE) {
+    const neighbors = hexNeighbors(q, r).filter(n=>{
+      const nu = getUnitAt(n.q, n.r);
+      return !nu || nu.owner === phasePlayer;
+    });
+    let bestPath = null, bestLen = 99;
+    for (let n of neighbors) {
+      const path = findPath(selUnit.q, selUnit.r, n.q, n.r, selUnit);
+      if (path && path.length > 0 && path.length < bestLen) {
+        bestPath = path; bestLen = path.length;
+      }
+    }
+    if (bestPath && bestLen > 0) {
+      const destHex = bestPath[bestPath.length-1];
+      // Move order with embedded attack after reaching destination
+      pendingOrder = {
+        type:'move', actionType:ACTION_TYPE.ADVANCE_FIRE,
+        fromQ:selUnit.q, fromR:selUnit.r,
+        toQ:destHex.q, toR:destHex.r,
+        path: bestPath,
+        attackTargetQ: q, attackTargetR: r, attackTargetId: clickedUnit.id
+      };
+      updateSidebar();
+    } else {
+      logEvent('无法找到路径接近目标');
+    }
+    return;
+  }
+  // Other action types: cannot target enemy directly
+  logEvent('请先选择"攻击"或"移动射击"模式来攻击敌军');
+}
+
+// Helper: handle clicking on empty/friendly hex during orders phase
+function handleMoveTarget(selUnit, q, r, clickedUnit, phasePlayer) {
+  const selType = getUnitType(selUnit);
+  // Determine movement multiplier
+  let movMult = 1.0;
+  if (selectedActionType === ACTION_TYPE.FORCED_MARCH || selectedActionType === ACTION_TYPE.RAPID_WITHDRAW) movMult = 2.0;
+  if (selectedActionType === ACTION_TYPE.ADVANCE_FIRE) movMult = 0.5;
+
+  // Compute path
+  const path = findPath(selUnit.q, selUnit.r, q, r, selUnit);
+  if (!path || path.length === 0) {
+    logEvent('无法到达目标格');
+    return;
+  }
+
+  // Switch selection if clicking on own unit nearby
+  if (clickedUnit && clickedUnit.owner === phasePlayer && path.length <= 2 && selectedActionType === ACTION_TYPE.MOVE) {
+    selectUnit(clickedUnit.id);
+    return;
+  }
+
+  // Validate movement range (include card movement bonus)
+  let maxMoves = Math.floor(selType.mov * movMult);
+  if (unitCardBuffs[selUnit.id] && unitCardBuffs[selUnit.id].movBonus) {
+    maxMoves += unitCardBuffs[selUnit.id].movBonus;
+  }
+  let pathCost = 0;
+  for (let i = 1; i < path.length; i++) {
+    pathCost += getMoveCost(path[i].q, path[i].r, selUnit, path[i-1].q, path[i-1].r);
+  }
+  if (pathCost > maxMoves + 0.01) {
+    logEvent(`移动力不足 (需要${pathCost.toFixed(1)} > ${maxMoves})`);
+    return;
+  }
+
+  // Rapid withdrawal: validate end hex is further from enemies
+  if (selectedActionType === ACTION_TYPE.RAPID_WITHDRAW) {
+    const startDist = minDistToEnemy(selUnit.q, selUnit.r, selUnit.owner);
+    const endDist = minDistToEnemy(q, r, selUnit.owner);
+    if (endDist <= startDist) {
+      logEvent('快速撤退必须远离敌军!');
+      return;
+    }
+  }
+
+  // Forward to giveMoveOrder with selected action type
+  giveMoveOrder(selUnit, q, r, path, selectedActionType);
+}
+
+// Helper: minimum hex distance from (q,r) to any visible enemy unit
+function minDistToEnemy(q, r, owner) {
+  let minD = 99;
+  for (let id in units) {
+    const u = units[id];
+    if (u.owner === owner || u.equip <= 0) continue;
+    const d = hexDistance(q, r, u.q, u.r);
+    if (d < minD) minD = d;
+  }
+  return minD;
+}
+
+function selectUnit(unitId) {
+  selectedUnitId = unitId;
+  pendingOrder = null;
+  updateSidebar();
+  updateUnitList();
+}
+
+function giveMoveOrder(unit, toQ, toR, path, actionType) {
+  pendingOrder = {type:'move', actionType:actionType||ACTION_TYPE.MOVE, fromQ:unit.q, fromR:unit.r, toQ, toR, path};
+  updateSidebar();
+}
+
+function giveAttackOrder(unit, targetQ, targetR, targetUnit, actionType) {
+  pendingOrder = {type:'attack', actionType:actionType||ACTION_TYPE.ATTACK, fromQ:unit.q, fromR:unit.r, toQ:targetQ, toR:targetR, targetId:targetUnit.id};
+  updateSidebar();
+}
+
+function confirmOrder() {
+  if (!selectedUnitId || !pendingOrder) return;
+  const unit = getUnit(selectedUnitId);
+  if (!unit) return;
+  const order = {...pendingOrder};
+  // Ensure actionType is set
+  if (!order.actionType) order.actionType = order.type==='attack' ? ACTION_TYPE.ATTACK : ACTION_TYPE.MOVE;
+  unitOrders[selectedUnitId] = order;
+  unit.order = order;
+  logEvent(`✓ ${unit.name} 命令已确认: ${describeAction(order)}→(${order.toQ},${order.toR})`);
+  selectedUnitId = null;
+  pendingOrder = null;
+  updateAll();
+}
+
+function cancelOrder() {
+  const uid = selectedUnitId;
+  if (uid) {
+    delete unitOrders[uid];
+    const unit = getUnit(uid);
+    if (unit) unit.order = null;
+  }
+  selectedUnitId = null;
+  pendingOrder = null;
+  updateAll();
+}
+
+// ==============================
+//  UI UPDATES
+// ==============================
+function updateSidebar() {
+  const info = document.getElementById('selected-info');
+  if (!selectedUnitId) {
+    info.innerHTML = '点击地图上的己方单位选中<br>再点击目标格下达命令';
+    return;
+  }
+  const unit = getUnit(selectedUnitId);
+  if (!unit) { info.innerHTML = ''; return; }
+  const ut = getUnitType(unit);
+
+  let html = `<b>${unit.name}</b>`;
+  if (unit.nation === 'ita') html += ` <span style="color:#90c040;font-size:10px">🇮🇹意军</span>`;
+  if (unit.routed) html += ` <span style="color:#e74c3c;font-size:10px">⚠溃退</span>`;
+  html += `<br>`;
+  html += `类型: ${ut.name} ${ut.icon}`;
+  if (unit.nation === 'ita') html += ` <span style="color:#aaa;font-size:9px">(士气低落)</span>`;
+  html += `<br>`;
+  html += `装备: ${unit.equip}/${unit.maxEquip} | 组织: ${unit.org}/${unit.maxOrg}<br>`;
+  html += `软攻:${ut.softAtk} 硬攻:${ut.hardAtk} 防御:${ut.def} 移动:${ut.mov} 射程:${ut.rng}<br>`;
+  html += `补给: ${unit.isSupplied?'✅':'❌'}`;
+
+  if (unit.order) {
+    html += `<br>📋 已下令: ${describeAction(unit.order)}→(${unit.order.toQ},${unit.order.toR})`;
+  }
+  if (pendingOrder) {
+    html += `<br><span style="color:#f1c40f">⏳ 待确认</span>`;
+    html += `<br><span style="font-size:9px;color:#888">请在下方面板确认或取消</span>`;
+  } else if (!unit.order) {
+    html += `<br><span style="font-size:9px;color:#888">操作面板 ↓ 选择行动模式</span>`;
+  }
+  info.innerHTML = html;
+}
+
+function actionBtn(label, type, enabled) {
+  const sel = selectedActionType === type ? 'border-color:#e74c3c;background:#2a1a1a' : 'border-color:#444';
+  const dis = enabled ? '' : 'opacity:0.4;cursor:not-allowed';
+  return `<button onclick="setActionType('${type}')" style="padding:3px 4px;background:#222;color:#ddd;border:2px solid;${sel};${dis}border-radius:4px;cursor:pointer;font-size:10px" ${!enabled?'disabled':''}>${label}</button>`;
+}
+
+function describeAction(order) {
+  const names = {
+    [ACTION_TYPE.MOVE]: '移动', [ACTION_TYPE.FORCED_MARCH]: '急行军',
+    [ACTION_TYPE.ADVANCE_FIRE]: '移动射击', [ACTION_TYPE.RAPID_WITHDRAW]: '快速撤退',
+    [ACTION_TYPE.ATTACK]: '攻击'
+  };
+  return names[order.actionType] || '移动';
+}
+
+function updateUnitList() {
+  const list = document.getElementById('unit-list');
+  // During AI phase, show the human player's units (read-only)
+  let displayOwner = getPhasePlayer();
+  if (isAIPhase()) {
+    displayOwner = gameMode === GAME_MODE.UK_VS_AI ? PLAYER.UK : PLAYER.GERMANY;
+  }
+  const interactive = !isAIPhase();
+  let html = '';
+  for (let id in units) {
+    const u = units[id];
+    if (u.owner !== displayOwner) continue;
+    const ut = getUnitType(u);
+    const sel = id === selectedUnitId ? ' selected' : '';
+    const ordered = u.order ? ' ✓' : '';
+    const clickHandler = interactive ? `onclick="selectUnit('${id}');updateUnitList()"` : '';
+    html += `<div class="unit-card${sel}" ${clickHandler}>`;
+    const nationTag = u.nation === 'ita' ? ' 🇮🇹' : '';
+    html += `<div class="name">${ut.icon} ${u.name}${nationTag}${ordered}</div>`;
+    html += `<div class="stats">装备:${u.equip}/${u.maxEquip} 组织:${u.org}/${u.maxOrg} | ${ut.name}${u.nation==='ita'?' [意军]':''}</div>`;
+    html += `<div class="bar-wrap"><div class="bar-fill bar-equip" style="width:${u.equip/u.maxEquip*100}%"></div></div>`;
+    html += `<div class="bar-wrap"><div class="bar-fill bar-org" style="width:${u.org/u.maxOrg*100}%"></div></div>`;
+    html += `</div>`;
+  }
+  list.innerHTML = html || '<div style="color:#666;font-size:12px">无单位</div>';
+
+  // Update sidebar title
+  const title = document.getElementById('sidebar-title');
+  if (isAIPhase()) {
+    title.textContent = gameMode === GAME_MODE.UK_VS_AI ? '📋 英军单位 (AI回合)' : '📋 德军单位 (AI回合)';
+  } else if (currentPhase === PHASE.DEPLOY_UK || currentPhase === PHASE.ORDERS_UK) {
+    title.textContent = '📋 英军单位';
+  } else if (currentPhase === PHASE.DEPLOY_DE || currentPhase === PHASE.ORDERS_DE) {
+    title.textContent = '📋 德军单位';
+  } else {
+    title.textContent = '📋 单位列表';
+  }
+
+  // Update reinforcement info
+  const reinfInfo = document.getElementById('reinf-info');
+  if (isAIPhase()) {
+    reinfInfo.innerHTML = '<span style="color:#888">🤖 AI思考中...</span>';
+  } else {
+    const pp = getPhasePlayer();
+    const rp = reinfPoints[pp] || 0;
+  if ((currentPhase === PHASE.DEPLOY_UK || currentPhase === PHASE.DEPLOY_DE) && rp > 0) {
+    reinfInfo.innerHTML = `🪖 可部署兵力点: <b>${rp}</b><br>
+      <span style="font-size:9px">步兵:2 | 装甲:5 | 炮兵:4 | 工兵:3 | 侦察:3</span><br>
+      <button onclick="buyTacticalCard(${pp})" style="margin-top:3px;padding:3px 8px;background:#8e44ad;color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:10px"
+        ${rp >= CARD_BUY_COST ? '' : 'disabled'}>🃏 消耗${CARD_BUY_COST}补给抽卡</button>`;
+    } else if (currentPhase === PHASE.DEPLOY_UK || currentPhase === PHASE.DEPLOY_DE) {
+      reinfInfo.innerHTML = '🪖 无可用兵力点';
+    } else {
+      reinfInfo.innerHTML = '';
+    }
+  }
+}
+
+function updateCPSummary() {
+  const div = document.getElementById('cp-summary');
+  if (!div) return;
+  const ukCPs = capturePoints.filter(cp=>{
+    const h = getHex(cp.q, cp.r);
+    return h && h.owner === PLAYER.UK;
+  });
+  const deCPs = capturePoints.filter(cp=>{
+    const h = getHex(cp.q, cp.r);
+    return h && h.owner === PLAYER.GERMANY;
+  });
+  let html = '<b>🏴 战略点控制</b><br>';
+  html += `<span style="color:#85c1e9">🇬🇧 英军: ${ukCPs.length}/${capturePoints.length}</span> `;
+  if (ukCPs.length > 0) {
+    html += ukCPs.map(cp=>cp.name.split(' ')[0]).join(', ');
+    html += '<br>';
+  }
+  html += `<span style="color:#f1948a">🇩🇪 德军: ${deCPs.length}/${capturePoints.length}</span> `;
+  if (deCPs.length > 0) {
+    html += deCPs.map(cp=>cp.name.split(' ')[0]).join(', ');
+    html += '<br>';
+  }
+  // Show units without orders during orders phase
+  if (currentPhase === PHASE.ORDERS_UK || currentPhase === PHASE.ORDERS_DE) {
+    const pp = getPhasePlayer();
+    let withOrders = 0, withoutOrders = 0;
+    for (let id in units) {
+      const u = units[id];
+      if (u.owner !== pp) continue;
+      if (unitOrders[id]) withOrders++;
+      else withoutOrders++;
+    }
+    html += `<br><span style="color:${withoutOrders>0?'#f39c12':'#2ecc71'}">📋 已下令: ${withOrders} | 未下令: ${withoutOrders}</span>`;
+  }
+  div.innerHTML = html;
+}
+
+function updateCardUI() {
+  const list = document.getElementById('card-list');
+  const title = document.getElementById('card-title');
+  if (!list || !title) return;
+  if (isAIPhase()) {
+    list.innerHTML = '<span style="color:#555">(AI思考中...)</span>';
+    title.textContent = '🃏 战术卡';
+    return;
+  }
+  const pp = getPhasePlayer();
+  const hand = playerCards[pp] || [];
+  const active = playerActiveCards[pp] || [];
+  // Sidebar shows minimal summary — full cards in floating panel
+  var activeStr = '';
+  if (active.length > 0) {
+    activeStr = ' <span style="color:#2ecc71;font-size:9px">生效:' + active.map(function(e){return e.cardIcon;}).join('') + '</span>';
+  }
+  title.innerHTML = '🃏 战术卡 (' + hand.length + '张)' + activeStr;
+  if (hand.length === 0) {
+    list.innerHTML = '<span style="color:#555;font-size:9px">浮窗中管理 →</span>';
+  } else {
+    list.innerHTML = '<span style="font-size:9px;color:#888">' + hand.map(function(c){return c.icon + c.name;}).join(' ') + '</span>';
+    if (selectedCardUid) {
+      var sc = hand.find(function(c2){return c2.uid===selectedCardUid;});
+      if (sc && sc.target !== 'global') {
+        list.innerHTML += '<div style="font-size:8px;color:#f1c40f;margin-top:2px">🎯 点' + (sc.target==='unit'?'己方单位':'地图格') + '使用</div>';
+      }
+    }
+  }
+}
+
+function selectCard(uid) {
+  const pp = getPhasePlayer();
+  const hand = playerCards[pp] || [];
+  const card = hand.find(c=>c.uid===uid);
+  if (!card) return;
+
+  // If already selected, deselect
+  if (selectedCardUid === uid) { selectedCardUid = null; updateCardUI(); return; }
+
+  selectedCardUid = uid;
+
+  // For global-effect cards, play immediately
+  if (card.target === 'global') {
+    playCard(pp, uid);
+    selectedCardUid = null;
+  }
+  updateCardUI();
+}
+window.selectCard = selectCard;
+
+function quickPlayCard(uid) {
+  selectCard(uid);
+}
+window.quickPlayCard = quickPlayCard;
+
+function updateToolbar() {
+  document.getElementById('turn-info').textContent = `回合 ${currentTurn} / ${MAX_TURNS}`;
+
+  const phaseInfo = document.getElementById('phase-info');
+  const phaseNames = {
+    [PHASE.DEPLOY_UK]: '🇬🇧 英军部署', [PHASE.DEPLOY_DE]: '🇩🇪 德军部署',
+    [PHASE.ORDERS_UK]: '🇬🇧 英军下令', [PHASE.ORDERS_DE]: '🇩🇪 德军下令',
+    [PHASE.RESOLVE]: '⚡ 回合执行中'
+  };
+  phaseInfo.textContent = `阶段: ${phaseNames[currentPhase] || '---'}`;
+
+  const badge = document.getElementById('player-badge');
+  const pp = getPhasePlayer();
+  if (pp === PLAYER.UK) {
+    badge.textContent = '🇬🇧 英军操作中';
+    badge.className = 'player-badge badge-uk';
+  } else if (pp === PLAYER.GERMANY) {
+    badge.textContent = '🇩🇪 德军操作中';
+    badge.className = 'player-badge badge-de';
+  } else {
+    badge.textContent = '执行中...';
+    badge.className = 'player-badge';
+  }
+
+  const sup = getSupplyValue(currentPlayer);
+  const cp = getControlledCPs(currentPlayer);
+  const totalCP = capturePoints.length;
+  document.getElementById('supply-info').textContent = `总补给: ${sup}`;
+  document.getElementById('vp-info').textContent = `占领点: ${cp}/${totalCP}`;
+}
+
+function updateButtons() {
+  const btnEnd = document.getElementById('btn-end-phase');
+  const btnResolve = document.getElementById('btn-resolve');
+
+  btnResolve.style.display = 'none';
+  btnEnd.style.display = 'inline-block';
+  btnEnd.disabled = false;
+
+  if (currentPhase === PHASE.DEPLOY_UK) {
+    btnEnd.textContent = '✓ 英军完成部署';
+    btnEnd.className = 'btn-green';
+    btnEnd.onclick = ()=>endDeployUK();
+  } else if (currentPhase === PHASE.DEPLOY_DE) {
+    btnEnd.textContent = '✓ 德军完成部署';
+    btnEnd.className = 'btn-green';
+    btnEnd.onclick = ()=>endDeployDE();
+  } else if (currentPhase === PHASE.ORDERS_UK) {
+    btnEnd.textContent = '✓ 英军下令完成';
+    btnEnd.className = 'btn-primary';
+    btnEnd.onclick = ()=>endOrdersUK();
+    // No resolve button — must go through German orders first (WEGO)
+    btnResolve.style.display = 'none';
+  } else if (currentPhase === PHASE.ORDERS_DE) {
+    btnEnd.textContent = '✓ 德军下令完成 → 执行回合';
+    btnEnd.className = 'btn-gold';
+    btnEnd.onclick = ()=>endOrdersDE();
+  } else if (currentPhase === PHASE.RESOLVE) {
+    btnEnd.style.display = 'none';
+    btnResolve.style.display = 'none';
+  }
+}
+
+function logEvent(msg, level) {
+  // Auto-categorize by emoji prefix if level not explicitly given
+  let lvl = level || 'info';
+  if (!level) {
+    if (msg.startsWith('⚔')) lvl = 'combat';
+    else if (msg.startsWith('⚠') || msg.startsWith('💀') || msg.startsWith('❌')) lvl = 'warning';
+    else if (msg.startsWith('🏴') || msg.startsWith('🏆') || msg.startsWith('🎉')) lvl = 'victory';
+    else if (msg.startsWith('═══') || msg.startsWith('════')) lvl = 'phase';
+    else if (msg.startsWith('🔄') || msg.startsWith('🪖') || msg.startsWith('📋')) lvl = 'phase';
+  }
+  eventLog.unshift({msg, lvl});
+  if (eventLog.length > 200) eventLog.pop();
+  const colors = {info:'#888', combat:'#e74c3c', warning:'#f39c12', victory:'#2ecc71', phase:'#85c1e9'};
+  const display = eventLog.slice(0, 4).map(e=>`<span style="color:${colors[e.lvl]||'#888'}">${e.msg}</span>`).join(' <span style="color:#555">|</span> ');
+  document.getElementById('log').innerHTML = display || '就绪';
+}
+
+// ==============================
+//  TURN SYSTEM (WEGO)
+// ==============================
+function startTurn() {
+  currentPhase = PHASE.DEPLOY_UK;
+  currentPlayer = PLAYER.UK;
+
+  // Reset all units for new turn
+  for (let id in units) {
+    const u = units[id];
+    u.hasMoved = false;
+    u.hasFought = false;
+    u.order = null;
+  }
+  unitOrders = {};
+  selectedUnitId = null;
+  pendingOrder = null;
+  selectedActionType = ACTION_TYPE.MOVE;
+
+  // Calculate reinforcement points based on supply
+  const supUK = getSupplyValue(PLAYER.UK);
+  const supDE = getSupplyValue(PLAYER.GERMANY);
+  reinfPoints[PLAYER.UK] = Math.max(1, Math.floor(supUK / 3));
+  reinfPoints[PLAYER.GERMANY] = Math.max(1, Math.floor(supDE / 3));
+
+  // Special effect: onTurnStart for all controlled capture points
+  for (let cp of capturePoints) {
+    const cph = getHex(cp.q, cp.r);
+    if (!cph) continue;
+    const effect = getCPEffect(cp);
+    if (effect && effect.onTurnStart && cph.owner !== PLAYER.NONE) {
+      effect.onTurnStart(cph.owner);
+    }
+  }
+
+  updateAll();
+  logEvent(`═════ 第 ${currentTurn} 回合开始 ═════`);
+  logEvent(`英军兵力点:${reinfPoints[PLAYER.UK]} 德军兵力点:${reinfPoints[PLAYER.GERMANY]}`);
+  logEvent('英军部署阶段: 在己方占领点(蓝方块)点击部署增援');
+}
+
+function endDeployUK() {
+  if (currentPhase !== PHASE.DEPLOY_UK) return;
+  var rp = reinfPoints[PLAYER.UK] || 0;
+  if (rp > 0 && !isAIPhase() && !confirm('还有 '+rp+' 点兵力未使用，确定结束部署？\n未使用的兵力点将会作废。')) {
+    return;
+  }
+  selectedUnitId = null; pendingOrder = null; selectedCardUid = null;
+  logEvent('英军部署完毕。');
+  var nextLabel = isAIPhase() ? '🤖 AI德军' : '🇩🇪 德军玩家';
+  showTransitionScreen('🇬🇧 英军部署完成', '请将操作权交给 '+nextLabel, function(){
+    currentPhase = PHASE.DEPLOY_DE;
+    currentPlayer = PLAYER.GERMANY;
+    updateAll();
+    if (isAIPhase()) setTimeout(triggerAI, 500);
+  });
+}
+
+function endDeployDE() {
+  if (currentPhase !== PHASE.DEPLOY_DE) return;
+  var rp = reinfPoints[PLAYER.GERMANY] || 0;
+  if (rp > 0 && !isAIPhase() && !confirm('还有 '+rp+' 点兵力未使用，确定结束部署？\n未使用的兵力点将会作废。')) {
+    return;
+  }
+  selectedUnitId = null; pendingOrder = null; selectedCardUid = null;
+  logEvent('德军部署完毕。');
+  var nextLabel = isAIPhase() ? '🤖 AI英军' : '🇬🇧 英军玩家';
+  showTransitionScreen('🇩🇪 德军部署完成', '请将操作权交给 '+nextLabel, function(){
+    currentPhase = PHASE.ORDERS_UK;
+    currentPlayer = PLAYER.UK;
+    unitOrders = {};
+    updateAll();
+    if (isAIPhase()) setTimeout(triggerAI, 500);
+  });
+}
+
+function endOrdersUK() {
+  if (currentPhase !== PHASE.ORDERS_UK) return;
+  // Warn if units have no orders
+  var pendingUnits = countUnitsWithoutOrders(PLAYER.UK);
+  if (pendingUnits > 0 && !isAIPhase() && !confirm(pendingUnits+' 个英军单位未下令，确定继续？\n未下令单位将原地待命。')) {
+    return;
+  }
+  selectedUnitId = null; pendingOrder = null; selectedCardUid = null;
+  logEvent('英军命令下达完毕。');
+  var nextLabel = isAIPhase() ? '🤖 AI德军' : '🇩🇪 德军玩家';
+  showTransitionScreen('🇬🇧 英军下令完成', '请将操作权交给 '+nextLabel, function(){
+    currentPhase = PHASE.ORDERS_DE;
+    currentPlayer = PLAYER.GERMANY;
+    updateAll();
+    if (isAIPhase()) setTimeout(triggerAI, 500);
+  });
+}
+
+function endOrdersDE() {
+  if (currentPhase !== PHASE.ORDERS_DE) return;
+  var pendingUnits = countUnitsWithoutOrders(PLAYER.GERMANY);
+  if (pendingUnits > 0 && !isAIPhase() && !confirm(pendingUnits+' 个德军单位未下令，确定执行回合？\n未下令单位将原地待命。')) {
+    return;
+  }
+  selectedUnitId = null; pendingOrder = null; selectedCardUid = null;
+  resolveTurn();
+}
+
+function countUnitsWithoutOrders(player) {
+  var count = 0;
+  for (var id in units) {
+    var u = units[id];
+    if (u.owner === player && u.equip > 0 && !unitOrders[id]) count++;
+  }
+  return count;
+}
+
+function showTransitionScreen(title, subtitle, callback) {
+  const screen = document.getElementById('transition-screen');
+  document.getElementById('transition-msg').textContent = title;
+  document.getElementById('transition-sub').textContent = subtitle + ' — 点击继续';
+  screen.style.display = 'flex';
+  function handler() {
+    screen.style.display = 'none';
+    screen.removeEventListener('click', handler);
+    document.removeEventListener('keydown', keyHandler);
+    if (callback) callback();
+  }
+  function keyHandler(e) {
+    if (e.key === 'Enter' || e.key === ' ') handler();
+  }
+  screen.addEventListener('click', handler);
+  document.addEventListener('keydown', keyHandler);
+}
+
+// ==============================
+//  TURN STATS COLLECTION
+// ==============================
+function initTurnStats() {
+  turnStats = {
+    turn: currentTurn,
+    moves: [],        // {side, name, fromQ, fromR, toQ, toR, action}
+    attacks: [],      // {side, atkName, defName, atkTotal, defTotal, result, atkLossEquip, atkLossOrg, defLossEquip, defLossOrg, defKilled, cpTaken}
+    eliminations: [], // {side, name, killedBy}
+    routs: [],        // {side, name}
+    cpChanges: [],    // {name, prevOwner, newOwner}
+  };
+}
+
+function showTurnStats() {
+  var st = turnStats;
+  if (!st) { startTurn(); return; }
+
+  // Determine viewer based on game mode (NOT getViewer(), which returns NONE during RESOLVE)
+  var viewer = PLAYER.NONE;
+  if (gameMode === GAME_MODE.UK_VS_AI) viewer = PLAYER.UK;
+  else if (gameMode === GAME_MODE.AI_VS_DE) viewer = PLAYER.GERMANY;
+  // Determine which side is the human (in hotseat, both sides are "own")
+  var ownSide = (viewer === PLAYER.NONE) ? 'both' : (viewer === PLAYER.UK ? 'uk' : 'de');
+
+  function isOwnSide(side) {
+    if (ownSide === 'both') return true;
+    return side === ownSide;
+  }
+
+  function canSee(side, q, r) {
+    // Always show own-side actions; for enemy, check FOW
+    if (isOwnSide(side)) return true;
+    if (viewer === PLAYER.NONE) return true;
+    return isHexVisible(q, r, viewer);
+  }
+
+  function sideLabel(side) { return side==='uk' ? '🇬🇧 英军' : '🇩🇪 德军'; }
+  function buildSection(side) {
+    var moves = st.moves.filter(function(m){return m.side===side && (canSee(m.side, m.toQ, m.toR) || canSee(m.side, m.fromQ, m.fromR));});
+    var attacks = st.attacks.filter(function(a){return a.side===side && canSee(a.side, a.q, a.r);});
+    var elims = st.eliminations.filter(function(e){return e.side===side && canSee(e.side, e.q, e.r);});
+    var routs = st.routs.filter(function(r){return r.side===side && canSee(r.side, r.q, r.r);});
+    var cps = st.cpChanges.filter(function(c){return c.newOwner===(side==='uk'?1:2) && canSee(side, c.q||0, c.r||0);});
+
+    var html = '';
+    // Moves
+    html += '<div class="stat-block"><div class="label">🚶 移动</div>';
+    if (moves.length===0) html += '<div class="stat-empty">无移动</div>';
+    else for (var i=0;i<moves.length;i++) {
+      var m = moves[i];
+      var actName = {move:'移动',forcedMarch:'⚡急行军',rapidWithdraw:'🏃撤退',advance_fire:'🔫移动射击',overrun:'💥突袭'}[m.action]||m.action;
+      html += '<div class="item">'+m.name+' '+actName+' →('+m.toQ+','+m.toR+')</div>';
+    }
+    html += '</div>';
+
+    // Attacks
+    html += '<div class="stat-block"><div class="label">⚔ 攻击</div>';
+    if (attacks.length===0) html += '<div class="stat-empty">无攻击</div>';
+    else for (var i2=0;i2<attacks.length;i2++) {
+      var a = attacks[i2];
+      var killTag = a.defKilled ? ' 💀消灭' : '';
+      var cpTag = a.cpTaken ? ' 🏴占点' : '';
+      html += '<div class="item">'+a.atkName+' → '+a.defName+' <span style="color:#f1c40f">'+a.result+'</span> ('+a.atkTotal+' vs '+a.defTotal+')'+(a.isAdvanceFire?' <span style="color:#e74c3c">🔫半攻</span>':'')+killTag+cpTag+'</div>';
+    }
+    html += '</div>';
+
+    // Losses
+    html += '<div class="stat-block"><div class="label" style="color:#e74c3c">💀 损失</div>';
+    var losses = [];
+    for (var i3=0;i3<elims.length;i3++) { losses.push(elims[i3].name+' (被'+elims[i3].killedBy+'消灭)'); }
+    for (var i4=0;i4<routs.length;i4++) { losses.push(routs[i4].name+' (溃退)'); }
+    if (losses.length===0) html += '<div class="stat-empty">无损失</div>';
+    else for (var i5=0;i5<losses.length;i5++) {
+      html += '<div class="item" style="color:#e74c3c">'+losses[i5]+'</div>';
+    }
+    html += '</div>';
+
+    // CP changes
+    if (cps.length>0) {
+      html += '<div class="stat-block"><div class="label">🏴 占领据点</div>';
+      for (var i6=0;i6<cps.length;i6++) {
+        html += '<div class="item" style="color:#f1c40f">'+cps[i6].name+'</div>';
+      }
+      html += '</div>';
+    }
+
+    if (moves.length===0 && attacks.length===0 && elims.length===0 && routs.length===0 && cps.length===0) {
+      return '<div class="stat-empty" style="text-align:center;padding:12px">本回合无行动</div>';
+    }
+    return html;
+  }
+
+  var ukHtml = buildSection('uk');
+  var deHtml = buildSection('de');
+
+  var card = document.getElementById('stats-card');
+  card.innerHTML =
+    '<h2>📊 第 '+st.turn+' 回合战报</h2>'+
+    '<div class="stats-cols">'+
+      '<div class="stats-col uk"><h3>🇬🇧 英军</h3>'+ukHtml+'</div>'+
+      '<div class="stats-col de"><h3>🇩🇪 德军</h3>'+deHtml+'</div>'+
+    '</div>'+
+    '<button class="btn-continue" id="btn-stats-ok">✓ 继续下一回合</button>';
+
+  var screen = document.getElementById('stats-screen');
+  screen.style.display = 'flex';
+
+  function dismiss() {
+    screen.style.display = 'none';
+    document.getElementById('btn-stats-ok').removeEventListener('click', dismiss);
+    document.removeEventListener('keydown', keyHandler);
+    startTurn();
+  }
+  function keyHandler(e) {
+    if (e.key==='Enter' || e.key===' ') dismiss();
+  }
+  document.getElementById('btn-stats-ok').addEventListener('click', dismiss);
+  document.addEventListener('keydown', keyHandler);
+}
+
+// ==============================
+//  COMBAT RESOLUTION
+// ==============================
+function resolveTurn() {
+  initTurnStats();
+  currentPhase = PHASE.RESOLVE;
+  currentPlayer = PLAYER.NONE;
+  updateAll();
+  logEvent('⚡ ═════ 执行回合决议 ═════ ⚡');
+
+  // Collect all orders from both sides
+  const allOrders = [];
+  for (let id in unitOrders) {
+    allOrders.push({unitId: id, ...unitOrders[id]});
+  }
+
+  // Sort: moves first (by unit speed), then attacks
+  const moveOrders = allOrders.filter(o=>o.type==='move');
+  const attackOrders = allOrders.filter(o=>o.type==='attack');
+
+  const combatResults = [];
+  const movesExecuted = [];
+
+  // Phase 1: Execute all movements
+  for (let order of moveOrders) {
+    const unit = getUnit(order.unitId);
+    if (!unit || unit.equip <= 0) continue;
+    const fromH = getHex(unit.q, unit.r);
+
+    // For advance-fire: move to staging position, then queue attack
+    if (order.actionType === ACTION_TYPE.ADVANCE_FIRE && order.attackTargetId && order.path && order.path.length > 1) {
+      const dest = order.path[order.path.length-1];
+      if (fromH && fromH.unitId === unit.id) fromH.unitId = null;
+      unit.q = dest.q; unit.r = dest.r;
+      const toH = getHex(dest.q, dest.r);
+      if (toH) { toH.unitId = unit.id; toH.owner = unit.owner; }
+      unit.hasMoved = true;
+      logEvent(`→ ${unit.name} 移动至 (${dest.q},${dest.r}) [移动射击]`);
+      if (turnStats) turnStats.moves.push({side: unit.owner===1?'uk':'de', name:unit.name, fromQ:fromH.q, fromR:fromH.r, toQ:dest.q, toR:dest.r, action:'advance_fire'});
+      // Queue the attack
+      const defUnit = getUnit(order.attackTargetId);
+      if (defUnit && defUnit.equip > 0) {
+        combatResults.push({
+          atkUnitId: unit.id, defUnitId: order.attackTargetId,
+          q: order.attackTargetQ, r: order.attackTargetR, isOverrun: false, isAdvanceFire: true
+        });
+      }
+      continue;
+    }
+
+    const path = order.path || findPath(order.fromQ, order.fromR, order.toQ, order.toR, unit);
+    if (path && path.length > 1) {
+      const dest = path[path.length-1];
+      const fromH = getHex(unit.q, unit.r);
+      const toH = getHex(dest.q, dest.r);
+      if (!toH || toH.terrain.imp) continue;
+
+      const enemyAtDest = getUnitAt(dest.q, dest.r);
+      if (enemyAtDest && enemyAtDest.owner !== unit.owner) {
+        // Movement blocked by enemy — convert to overrun combat
+        // Apply action-specific effects before overrun
+        const act = order.actionType || ACTION_TYPE.MOVE;
+        let actTag2 = '';
+        if (act === ACTION_TYPE.FORCED_MARCH) {
+          unit.equip = Math.max(0, unit.equip - 1);
+          unit.org = Math.max(0, unit.org - 15);
+          actTag2 = '[急行军] -1装 -15组';
+        } else if (act === ACTION_TYPE.MOVE) {
+          unit.org = Math.min(unit.maxOrg, unit.org + 5);
+          actTag2 = '[移动] +5组';
+        } else if (act === ACTION_TYPE.RAPID_WITHDRAW) {
+          unit.org = Math.max(0, unit.org - 25);
+          actTag2 = '[快速撤退] -25组';
+        }
+        unit.hasMoved = true;
+        combatResults.push({
+          atkUnitId: unit.id, defUnitId: enemyAtDest.id,
+          q: dest.q, r: dest.r, isOverrun: true
+        });
+        logEvent(`→ ${unit.name} 冲撞敌军 (${dest.q},${dest.r}) ${actTag2} [转为近战]`);
+        if (turnStats) turnStats.moves.push({side: unit.owner===1?'uk':'de', name:unit.name, fromQ:fromH.q, fromR:fromH.r, toQ:dest.q, toR:dest.r, action:'overrun'});
+        if (unit.equip <= 0) { removeUnit(unit.id); logEvent(`  💀${unit.name}急行军覆灭`); if (turnStats) turnStats.eliminations.push({side: unit.owner===1?'uk':'de', name: unit.name, killedBy: '急行军冲撞损耗', q: fromH.q, r: fromH.r}); }
+        if (unit.org <= 0) { removeUnit(unit.id); logEvent(`  💀${unit.name}溃散覆灭`); if (turnStats && unit.equip > 0) turnStats.eliminations.push({side: unit.owner===1?'uk':'de', name: unit.name, killedBy: '冲撞溃散', q: fromH.q, r: fromH.r}); }
+      } else if (!enemyAtDest || enemyAtDest.owner === unit.owner) {
+        // Execute move
+        if (fromH && fromH.unitId === unit.id) fromH.unitId = null;
+        unit.q = dest.q; unit.r = dest.r;
+        if (toH) {
+          toH.unitId = unit.id;
+          if (toH.owner === PLAYER.NONE || toH.owner !== unit.owner) toH.owner = unit.owner;
+        }
+        unit.hasMoved = true;
+        movesExecuted.push({unit, path, destQ: dest.q, destR: dest.r});
+
+        // ---- Apply action-specific effects ----
+        const act = order.actionType || ACTION_TYPE.MOVE;
+        let actTag = '';
+        if (act === ACTION_TYPE.FORCED_MARCH) {
+          unit.equip = Math.max(0, unit.equip - 1);
+          unit.org = Math.max(0, unit.org - 15);
+          actTag = '[急行军] -1装 -15组';
+          if (unit.equip <= 0) { removeUnit(unit.id); actTag += ' 💀覆灭'; if (turnStats) turnStats.eliminations.push({side: unit.owner===1?'uk':'de', name: unit.name, killedBy: '急行军损耗', q: unit.q, r: unit.r}); }
+        } else if (act === ACTION_TYPE.MOVE) {
+          unit.org = Math.min(unit.maxOrg, unit.org + 5);
+          actTag = '[移动] +5组';
+        } else if (act === ACTION_TYPE.RAPID_WITHDRAW) {
+          unit.org = Math.max(0, unit.org - 25);
+          actTag = '[快速撤退] -25组';
+          if (unit.org <= 0) { removeUnit(unit.id); actTag += ' 💀覆灭'; if (turnStats) turnStats.eliminations.push({side: unit.owner===1?'uk':'de', name: unit.name, killedBy: '快速撤退溃散', q: unit.q, r: unit.r}); }
+        }
+        logEvent(`→ ${unit.name} 移动至 (${dest.q},${dest.r}) ${actTag}`);
+        if (turnStats) turnStats.moves.push({side: unit.owner===1?'uk':'de', name:unit.name, fromQ:fromH.q, fromR:fromH.r, toQ:dest.q, toR:dest.r, action:act});
+      }
+    }
+  }
+
+  // Phase 2: Execute all attacks
+  for (let order of attackOrders) {
+    const atkUnit = getUnit(order.unitId);
+    const defUnit = getUnit(order.targetId);
+    if (!atkUnit || atkUnit.equip <= 0) continue;
+    if (!defUnit || defUnit.equip <= 0) continue;
+    combatResults.push({
+      atkUnitId: atkUnit.id, defUnitId: defUnit.id,
+      q: order.toQ, r: order.toR, isOverrun: false
+    });
+  }
+
+  // Phase 3: Resolve all combats
+  for (let cr of combatResults) {
+    resolveCombat(cr);
+  }
+
+  // Phase 4: Supply and attrition
+  calculateSupply();
+  applyAttrition();
+
+  // Phase 5: Org recovery for idle units + rout recovery
+  for (let id in units) {
+    const u = units[id];
+    if (u.equip <= 0) continue;
+    if (u.routed) {
+      // Routed units recover very slowly, auto-recover at 50%
+      u.org = Math.min(u.maxOrg, u.org + 5);
+      if (u.org >= u.maxOrg * 0.5) {
+        u.routed = false;
+        logEvent(`  ✅ ${u.name} 恢复士气`);
+      }
+    } else if (!u.hasMoved && !u.hasFought) {
+      u.org = Math.min(u.maxOrg, u.org + (u.isSupplied ? 15 : 5));
+    }
+  }
+
+  // Phase 6: Consolidate territory
+  consolidateTerritory();
+
+  // Clear turn-based card effects
+  clearTurnCards();
+
+  // Phase 7: Victory check
+  if (checkVictory()) return;
+
+  // Next turn
+  currentTurn++;
+  if (currentTurn > MAX_TURNS) {
+    endGameByPoints();
+    return;
+  }
+  showTurnStats();
+}
+
+// ==============================
+//  COMBAT RESOLUTION (v3 — 2d6, soft/hard attack, 6-level results table, rout)
+// ==============================
+function resolveCombat(cr) {
+  const atkUnit = getUnit(cr.atkUnitId);
+  const defUnit = getUnit(cr.defUnitId);
+  if (!atkUnit || !defUnit) return;
+  // Routed units cannot attack
+  if (atkUnit.routed) { logEvent(`  ⚠ ${atkUnit.name} 溃退中,无法攻击`); return; }
+
+  const atkType = getUnitType(atkUnit);
+  const defType = getUnitType(defUnit);
+  const h = getHex(cr.q, cr.r);
+  const terrainDef = h ? h.terrain.def : 0;
+
+  // Check for special effects on defender's hex
+  const defCP = capturePoints.find(cp=>cp.q===defUnit.q && cp.r===defUnit.r);
+  const defEffect = defCP ? getCPEffect(defCP) : null;
+
+  // Check for special effects on attacker's hex
+  const atkCP = capturePoints.find(cp=>cp.q===atkUnit.q && cp.r===atkUnit.r);
+  const atkEffect = atkCP ? getCPEffect(atkCP) : null;
+
+  // ---- ATTACKER POWER ----
+  // Use softAtk vs infantry/eng/recon, hardAtk vs armor
+  const isHardTarget = defType.id === 'arm';
+  let atkPower = isHardTarget ? atkType.hardAtk : atkType.softAtk;
+  // Org affects combat effectiveness
+  const orgRatioAtk = atkUnit.org / atkUnit.maxOrg;
+  if (orgRatioAtk < 0.5) atkPower = Math.floor(atkPower * 0.7);
+  if (orgRatioAtk < 0.25) atkPower = Math.floor(atkPower * 0.5);
+  // Supply penalty
+  if (!atkUnit.isSupplied) atkPower = Math.floor(atkPower * 0.6);
+  // Combined arms: friendly artillery within 2 hexes, +2 (deduplicated)
+  const artySeen = new Set();
+  const atkNeighbors = hexNeighbors(atkUnit.q, atkUnit.r);
+  let nearbyArty = false;
+  for (let n of atkNeighbors) {
+    const u = getUnitAt(n.q, n.r);
+    const nk = hexKey(n.q, n.r);
+    if (u && u.owner === atkUnit.owner && u.typeId === 'art' && u.org > 30 && !artySeen.has(nk)) {
+      artySeen.add(nk); nearbyArty = true;
+    }
+  }
+  if (!nearbyArty) {
+    for (let n of atkNeighbors) {
+      for (let n2 of hexNeighbors(n.q, n.r)) {
+        const nk2 = hexKey(n2.q, n2.r);
+        if (artySeen.has(nk2)) continue;
+        const u = getUnitAt(n2.q, n2.r);
+        if (u && u.owner === atkUnit.owner && u.typeId === 'art' && u.org > 30) {
+          artySeen.add(nk2); nearbyArty = true;
+        }
+      }
+    }
+  }
+  if (nearbyArty && atkType.id !== 'art') atkPower += 2;
+
+  // Special: 琴图里佩 — +3 attack dice toward Catania
+  let atkDiceBonus = 0;
+  if (atkEffect && atkEffect.attackDiceBonus) {
+    atkDiceBonus += atkEffect.attackDiceBonus(atkUnit, cr.q, cr.r);
+  }
+  // Tactical card: attack dice bonuses (air support, artillery barrage)
+  atkDiceBonus += getActiveEffectVal(atkUnit.owner, 'attackDice');
+  // Tactical card: defender smoke cover — reduce attacker's dice
+  if (hasActiveEffect(defUnit.owner, 'defenseDice')) {
+    atkDiceBonus -= getActiveEffectVal(defUnit.owner, 'defenseDice');
+  }
+
+  // Advance fire penalty: move + shoot = half attack power
+  if (cr.isAdvanceFire) atkPower = Math.floor(atkPower * 0.5);
+  // Tactical card: unit attack bonus (raid orders)
+  if (unitCardBuffs[atkUnit.id] && unitCardBuffs[atkUnit.id].atkBonus) {
+    atkPower += unitCardBuffs[atkUnit.id].atkBonus;
+  }
+
+  // ---- DEFENDER POWER ----
+  let defPower = defType.def + Math.max(0, terrainDef) * 2;
+  // Routed defender penalty
+  if (defUnit.routed) defPower -= 3;
+  // Org penalty
+  if (defUnit.org < 30) defPower = Math.floor(defPower * 0.7);
+  // Supply penalty
+  if (!defUnit.isSupplied) defPower = Math.floor(defPower * 0.6);
+  // Entrenched engineer
+  if (defType.id === 'eng' && (h?.terrain.id===5 || h?.terrain.id===7)) defPower += 2;
+  // Forest cover
+  if (h && h.forest) defPower += 1;
+
+  // Special: defender bonuses (Troina +2def, Ragusa +1def)
+  let defOrgSavePct = 0;
+  let defDefBonus = 0;
+  if (defEffect) {
+    if (defEffect.defenderDefBonus) defDefBonus += defEffect.defenderDefBonus;
+    if (defEffect.defenderOrgSave) defOrgSavePct = defEffect.defenderOrgSave;
+  }
+  defPower += defDefBonus;
+  // Tactical card: unit defense bonus (fortifications)
+  if (unitCardBuffs[defUnit.id] && unitCardBuffs[defUnit.id].defBonus) {
+    defPower += unitCardBuffs[defUnit.id].defBonus;
+  }
+
+  // River crossing: attacking across a river edge gives defender +2 defense
+  if (hexDistance(atkUnit.q, atkUnit.r, defUnit.q, defUnit.r) <= 1
+      && hasRiverEdge(atkUnit.q, atkUnit.r, defUnit.q, defUnit.r)
+      && !hasActiveEffect(atkUnit.owner, 'riverRoad')) {
+    defPower += 2;
+  }
+
+  // Special: 卡塔尼亚 — DE defender Org+20%
+  let defenderOrgMult = 1.0;
+  if (defEffect && defEffect.defenderOrgBonus) {
+    defenderOrgMult = 1.0 + defEffect.defenderOrgBonus(defUnit.owner);
+  }
+
+  // ---- ARTILLERY DEFENSIVE FIRE ----
+  // Friendly artillery within 2 hexes provides +2 def support, expends 5 org
+  let artySupport = 0, artySupportUnit = null;
+  const defNeighbors2 = hexNeighbors(defUnit.q, defUnit.r).concat(
+    hexNeighbors(defUnit.q, defUnit.r).flatMap(n=>hexNeighbors(n.q, n.r))
+  );
+  const artyChecked = new Set();
+  for (let n of defNeighbors2) {
+    const nk = hexKey(n.q, n.r);
+    if (artyChecked.has(nk)) continue;
+    artyChecked.add(nk);
+    // Skip defender's own hex
+    if (n.q === defUnit.q && n.r === defUnit.r) continue;
+    const au = getUnitAt(n.q, n.r);
+    if (au && au.owner === defUnit.owner && au.typeId === 'art' && au.org > 30 && !au.routed) {
+      artySupport = 2;
+      artySupportUnit = au;
+      break; // only one artillery provides defensive support
+    }
+  }
+  if (artySupport > 0 && artySupportUnit) {
+    defPower += artySupport;
+    artySupportUnit.org = Math.max(0, artySupportUnit.org - 5);
+    // Don't log individual support events during multi-combat resolution (too noisy)
+    // The combat log line already includes defPower changes
+  }
+
+  // ---- 2D6 DICE ROLLS ----
+  const atkRoll = roll2d6() + atkDiceBonus;
+  const defRoll = roll2d6();
+  const atkTotal = atkPower + atkRoll;
+  const defTotal = defPower + defRoll;
+  const diff = atkTotal - defTotal;
+
+  // ---- 6-LEVEL COMBAT RESULTS TABLE ----
+  const RESULT_TABLE = {
+    devastating:  {min:6,  label:'💥毁灭打击', equipDmgA:0, equipDmgD:(d)=>Math.max(2,Math.floor(d/2)),
+                   orgDmgA:(d,dr)=>Math.max(1,Math.floor(dr/4)),
+                   orgDmgD:(d,dr)=>Math.max(15,Math.floor(d*1.8))},
+    solid:        {min:3,  label:'💢重创',     equipDmgA:0, equipDmgD:(d)=>Math.max(1,Math.floor(d/3)),
+                   orgDmgA:(d,dr)=>Math.max(2,Math.floor(dr/4)),
+                   orgDmgD:(d,dr)=>Math.max(10,Math.floor(d*1.5))},
+    hit:          {min:0,  label:'⚡命中',     equipDmgA:0, equipDmgD:1,
+                   orgDmgA:(d,dr)=>Math.max(3,Math.floor(dr/3)),
+                   orgDmgD:(d,dr)=>Math.max(5,Math.floor(d*1.2)+5)},
+    stalemate:    {min:-3, label:'↔️僵持',     equipDmgA:1, equipDmgD:1,
+                   orgDmgA:(d,dr)=>Math.max(3,Math.floor(Math.abs(d)*0.5)+3),
+                   orgDmgD:(d,dr)=>Math.max(3,Math.floor(Math.abs(d)*0.5)+3)},
+    repulsed:     {min:-6, label:'🔙击退',     equipDmgA:(d)=>Math.max(2,Math.floor(Math.abs(d)/3)), equipDmgD:0,
+                   orgDmgA:(d,dr)=>Math.max(10,Math.floor(Math.abs(d)*1.5)),
+                   orgDmgD:(d,dr)=>Math.max(2,Math.floor(Math.abs(d)*0.3))},
+    counterattack:{min:-99,label:'💀反攻',     equipDmgA:(d)=>Math.max(3,Math.floor(Math.abs(d)/2)), equipDmgD:0,
+                   orgDmgA:(d,dr)=>Math.max(15,Math.floor(Math.abs(d)*2.0)),
+                   orgDmgD:(d,dr)=>Math.max(1,Math.floor(Math.abs(d)*0.2))},
+  };
+
+  // Find which result level applies
+  let resultLevel = 'counterattack'; // default worst case
+  for (let key of ['devastating','solid','hit','stalemate','repulsed','counterattack']) {
+    if (diff >= RESULT_TABLE[key].min) { resultLevel = key; break; }
+  }
+  const res = RESULT_TABLE[resultLevel];
+
+  // Calculate damage
+  let equipDmgA = typeof res.equipDmgA === 'function' ? res.equipDmgA(diff) : res.equipDmgA;
+  const equipDmgD = typeof res.equipDmgD === 'function' ? res.equipDmgD(diff) : res.equipDmgD;
+  let orgDmgA = res.orgDmgA(diff, defRoll);
+  let orgDmgD = res.orgDmgD(diff, defRoll);
+  // Apply defender org save (e.g. Troina: -50%)
+  orgDmgD = Math.floor(orgDmgD * (1 - defOrgSavePct));
+  // Apply defender org multiplier (e.g. Catania: DE +20%)
+  if (defenderOrgMult > 1.0) orgDmgD = Math.floor(orgDmgD / defenderOrgMult);
+
+  // Artillery firing from 2 hexes away: no counterattack damage
+  if (atkType.id === 'art' && hexDistance(atkUnit.q, atkUnit.r, defUnit.q, defUnit.r) >= 2) {
+    equipDmgA = 0;
+    orgDmgA = 0;
+  }
+
+  // Apply damage
+  atkUnit.equip = Math.max(0, atkUnit.equip - equipDmgA);
+  atkUnit.org = Math.max(0, atkUnit.org - orgDmgA);
+  defUnit.equip = Math.max(0, defUnit.equip - equipDmgD);
+  defUnit.org = Math.max(0, defUnit.org - orgDmgD);
+  atkUnit.hasFought = true;
+  defUnit.hasFought = true;
+
+  // Build bonus tags for log
+  let bonusTags = [];
+  if (atkDiceBonus) bonusTags.push(`攻方+${atkDiceBonus}骰`);
+  if (defDefBonus) bonusTags.push(`守方+${defDefBonus}防`);
+  if (defOrgSavePct > 0) bonusTags.push(`守方护盾${Math.round(defOrgSavePct*100)}%`);
+  if (defenderOrgMult > 1.0) bonusTags.push(`守方Org×${defenderOrgMult.toFixed(1)}`);
+  if (artySupport > 0) bonusTags.push(`炮兵支援+${artySupport}`);
+  if (atkUnit.routed) bonusTags.push('攻方溃退');
+  if (defUnit.routed) bonusTags.push('守方溃退');
+  if (atkType.id === 'art' && hexDistance(atkUnit.q, atkUnit.r, defUnit.q, defUnit.r) >= 2) bonusTags.push('远程射击无反击');
+  const bonusStr = bonusTags.length > 0 ? ` [${bonusTags.join(',')}]` : '';
+
+  logEvent(`⚔ ${atkType.icon}${atkUnit.name}(${atkTotal}) vs ${defType.icon}${defUnit.name}(${defTotal}) [${h?h.terrain.name:''}]${bonusStr}`);
+
+  let resultTags = [];
+  if (equipDmgD > 0) resultTags.push(`守-${equipDmgD}装`);
+  if (orgDmgD > 0) resultTags.push(`守-${orgDmgD}组`);
+  if (equipDmgA > 0) resultTags.push(`攻-${equipDmgA}装`);
+  if (orgDmgA > 0) resultTags.push(`攻-${orgDmgA}组`);
+  let resultText = `${res.label} [${resultTags.join(' ')}]`;
+
+  // ---- DESTROY CHECK (org <= 0 or equip <= 0) ----
+  // Defender destroyed
+  if (defUnit.equip <= 0 || defUnit.org <= 0) {
+    resultText += ` 💀${defUnit.name}覆灭`;
+    const dh = getHex(defUnit.q, defUnit.r);
+    const defQ = defUnit.q, defR = defUnit.r;
+    removeUnit(defUnit.id);
+    if (dh && cr.isOverrun) {
+      dh.unitId = atkUnit.id;
+      dh.owner = atkUnit.owner;
+      atkUnit.q = cr.q; atkUnit.r = cr.r;
+      resultText += ` 攻方推进`;
+    }
+    // Check capture point at destroyed unit's hex
+    const cp = capturePoints.find(c=>c.q===defQ && c.r===defR);
+    if (cp) {
+      const ch = getHex(cp.q, cp.r);
+      const prevOwner = ch ? ch.owner : cp.startOwner;
+      if (ch) ch.owner = atkUnit.owner;
+      resultText += ` 🏴${cp.name}易手!`;
+      logEvent(`🏴 ${cp.name} 被 ${atkUnit.owner===PLAYER.UK?'英军':'德军'} 占领!`);
+      triggerCaptureEffect(cp, atkUnit.owner, prevOwner);
+    }
+  }
+  // Attacker destroyed (independent check — both sides can be destroyed in same combat)
+  if (atkUnit.equip <= 0 || atkUnit.org <= 0) {
+    resultText += ` 💀${atkUnit.name}覆灭`;
+    removeUnit(atkUnit.id);
+  }
+  // ---- ROUT CHECK (only if both still alive) ----
+  if (units[atkUnit.id] && units[defUnit.id]) {
+    // Defender morale check
+    if (defUnit.org / defUnit.maxOrg < 0.30) {
+      if (!checkMorale(defUnit)) {
+        applyRout(defUnit, atkUnit);
+        resultText += ` 🏃守方溃退`;
+      }
+    }
+    // Attacker morale check on repulsed/counterattack
+    if ((resultLevel === 'counterattack' || resultLevel === 'repulsed') && atkUnit.equip > 0 && atkUnit.org > 0) {
+      if (atkUnit.org / atkUnit.maxOrg < 0.30) {
+        if (!checkMorale(atkUnit)) {
+          applyRout(atkUnit, defUnit);
+          resultText += ` 🏃攻方溃退`;
+        }
+      }
+    }
+  }
+
+  logEvent(`  ${resultText}`);
+
+  // Collect turn stats
+  if (turnStats) {
+    var atkSide = atkUnit.owner===1?'uk':'de';
+    var defSide = defUnit.owner===1?'uk':'de';
+    var defKilled = (defUnit.equip <= 0 || defUnit.org <= 0);
+    var atkKilled = (atkUnit.equip <= 0 || atkUnit.org <= 0);
+    var cpName = null;
+    if (defKilled) {
+      var defcp = capturePoints.find(function(c){return c.q===defUnit.q && c.r===defUnit.r;});
+      if (defcp) cpName = defcp.name;
+    }
+    turnStats.attacks.push({
+      side: atkSide, atkName: atkUnit.name, defName: defUnit.name,
+      atkTotal: atkTotal, defTotal: defTotal,
+      result: res.label,
+      atkLossEquip: equipDmgA, atkLossOrg: orgDmgA,
+      defLossEquip: equipDmgD, defLossOrg: orgDmgD,
+      defKilled: defKilled, defSide: defSide,
+      cpTaken: cpName, q: defUnit.q, r: defUnit.r,
+      isAdvanceFire: cr.isAdvanceFire || false
+    });
+    if (defKilled) {
+      turnStats.eliminations.push({side: defSide, name: defUnit.name, killedBy: atkUnit.name, q: defUnit.q, r: defUnit.r});
+      if (cpName) turnStats.cpChanges.push({name: cpName, prevOwner: defSide==='uk'?1:2, newOwner: atkUnit.owner, q: defcp.q, r: defcp.r});
+    }
+    if (atkKilled) {
+      turnStats.eliminations.push({side: atkSide, name: atkUnit.name, killedBy: defUnit.name, q: atkUnit.q, r: atkUnit.r});
+    }
+    // Routs
+    if (resultText.indexOf('守方溃退')>=0) turnStats.routs.push({side: defSide, name: defUnit.name, q: defUnit.q, r: defUnit.r});
+    if (resultText.indexOf('攻方溃退')>=0) turnStats.routs.push({side: atkSide, name: atkUnit.name, q: atkUnit.q, r: atkUnit.r});
+  }
+}
+
+// ---- MORALE CHECK ----
+// Returns true if unit holds, false if routs
+function checkMorale(unit) {
+  if (unit.org <= 0) return false;
+  const orgPct = unit.org / unit.maxOrg;
+  if (orgPct >= 0.30) return true; // above threshold, no check
+  // Roll 2d6, must be <= floor(currentOrg / 5)
+  let threshold = Math.max(1, Math.floor(unit.org / 5));
+  // Italian units: -1 morale threshold (poor fighting spirit, but not auto-rout)
+  if (unit.nation === 'ita') {
+    threshold = Math.max(1, threshold - 1);
+  }
+  const roll = roll2d6();
+  const passed = roll <= threshold;
+  if (!passed) {
+    const nationTag = unit.nation === 'ita' ? '[意军]' : '';
+    logEvent(`  💔 [士气] ${nationTag}${unit.name} Org=${unit.org}/${unit.maxOrg} 阈值=${threshold} 掷骰=${roll} ❌溃退`);
+  }
+  return passed;
+}
+
+// ---- ROUT EXECUTION ----
+// Retreat 1-2 hexes away from threatUnit, lose 15 Org, mark routed
+function applyRout(unit, threatUnit) {
+  unit.routed = true;
+  // Find valid retreat hex farthest from threat
+  let retreatHex = null;
+  // First ring
+  const dirs1 = hexNeighbors(unit.q, unit.r);
+  let bestDist = -1;
+  for (let n of dirs1) {
+    const nh = getHex(n.q, n.r);
+    if (!nh || nh.terrain.imp) continue;
+    if (getUnitAt(n.q, n.r)) continue; // occupied
+    const dist = hexDistance(n.q, n.r, threatUnit.q, threatUnit.r);
+    if (dist > bestDist) { bestDist = dist; retreatHex = n; }
+  }
+  // Second ring (retreat 2 hexes if possible)
+  if (retreatHex) {
+    const dirs2 = hexNeighbors(retreatHex.q, retreatHex.r);
+    let bestDist2 = -1, secondHex = null;
+    for (let n of dirs2) {
+      if (n.q === unit.q && n.r === unit.r) continue;
+      const nh = getHex(n.q, n.r);
+      if (!nh || nh.terrain.imp) continue;
+      if (getUnitAt(n.q, n.r)) continue;
+      const dist = hexDistance(n.q, n.r, threatUnit.q, threatUnit.r);
+      if (dist > bestDist2) { bestDist2 = dist; secondHex = n; }
+    }
+    if (secondHex) retreatHex = secondHex;
+  }
+
+  if (retreatHex) {
+    const oldH = getHex(unit.q, unit.r);
+    if (oldH && oldH.unitId === unit.id) oldH.unitId = null;
+    unit.q = retreatHex.q;
+    unit.r = retreatHex.r;
+    const newH = getHex(retreatHex.q, retreatHex.r);
+    if (newH) { newH.unitId = unit.id; newH.owner = unit.owner; }
+  }
+  unit.org = Math.max(0, unit.org - 15);
+  logEvent(`  🏃 ${unit.name} 溃退至 (${unit.q},${unit.r}) -15组织`);
+  // Shatter if org hits 0 during rout
+  if (unit.org <= 0) {
+    logEvent(`  💀 ${unit.name} 溃散覆灭`);
+    removeUnit(unit.id);
+  }
+}
+
+// Trigger special effect when a capture point changes hands
+function triggerCaptureEffect(cp, newOwner, prevOwner) {
+  const effect = getCPEffect(cp);
+  if (effect && effect.onCapture) {
+    effect.onCapture(newOwner, prevOwner);
+  }
+  // Check for messina instant victory
+  if (cp.effect === 'messina' && newOwner === PLAYER.UK) {
+    // handled in onCapture
+  }
+}
+
+// ==============================
+//  SUPPLY SYSTEM
+// ==============================
+function calculateSupply() {
+  // Reset all supply levels
+  for (let r=0; r<ROWS; r++)
+    for (let q=0; q<COLS; q++)
+      hexGrid[r][q].supplyLevel = 0;
+
+  // BFS from each controlled capture point
+  for (let cp of capturePoints) {
+    const h = getHex(cp.q, cp.r);
+    if (!h || h.owner === PLAYER.NONE) continue;
+    const owner = h.owner;
+    const visited = new Set();
+    const queue = [{q:cp.q, r:cp.r, dist:0}];
+    visited.add(hexKey(cp.q, cp.r));
+
+    // Check for palermo supply radius bonus
+    const effect = getCPEffect(cp);
+    let maxRange = 14;
+    if (effect && effect.supplyRadiusBonus) {
+      maxRange += effect.supplyRadiusBonus;
+    }
+    // Tactical card: escort fleet supply radius bonus
+    maxRange += getActiveEffectVal(owner, 'supplyRadius');
+
+    while (queue.length > 0) {
+      const {q, r, dist} = queue.shift();
+      if (dist > maxRange) continue;
+      const ch = getHex(q, r);
+      if (ch) {
+        const level = Math.max(0.25, 1.0 - dist/maxRange);
+        ch.supplyLevel = Math.max(ch.supplyLevel || 0, level);
+      }
+      if (dist >= maxRange) continue;
+      for (let n of hexNeighbors(q, r)) {
+        const nh = getHex(n.q, n.r);
+        if (!nh || nh.terrain.imp) continue;
+        if (nh.owner !== owner) continue;
+        const nk = hexKey(n.q, n.r);
+        if (visited.has(nk)) continue;
+        const stepCost = nh.road ? 0.5 : nh.terrain.mc;
+        // Enemy ZOC: supply reaches the hex but cannot extend further
+        // Recon units (noZOC) do not project ZOC
+        const zocBlocked = hexNeighbors(n.q, n.r).some(n2=>{
+          const u2 = getUnitAt(n2.q, n2.r);
+          if (!u2 || u2.owner === owner) return false;
+          const u2t = getUnitType(u2);
+          return !u2t || !u2t.noZOC;
+        });
+        visited.add(nk);
+        const newDist = dist + stepCost;
+        if (newDist <= maxRange) {
+          const level = Math.max(0.25, 1.0 - newDist/maxRange);
+          nh.supplyLevel = Math.max(nh.supplyLevel || 0, level);
+        }
+        if (!zocBlocked && newDist < maxRange) {
+          queue.push({q:n.q, r:n.r, dist:newDist});
+        }
+      }
+    }
+  }
+
+  // Update unit supply status
+  for (let id in units) {
+    const u = units[id];
+    const h = getHex(u.q, u.r);
+    u.isSupplied = h ? h.supplyLevel >= 0.25 : false;
+    // Card: air supply immunity — unit always supplied
+    if (!u.isSupplied && unitCardBuffs[id] && unitCardBuffs[id].supplyImmune && unitCardBuffs[id].supplyImmune > 0) {
+      u.isSupplied = true;
+    }
+  }
+}
+
+function applyAttrition() {
+  for (let id in units) {
+    const u = units[id];
+    if (!u.isSupplied && u.equip > 0) {
+      // Check encirclement
+      const neighbors = hexNeighbors(u.q, u.r);
+      const friendlyNeighbor = neighbors.some(n=>{
+        const nu = getUnitAt(n.q, n.r);
+        const nh = getHex(n.q, n.r);
+        return (nu && nu.owner === u.owner) || (nh && nh.owner === u.owner);
+      });
+      const mult = friendlyNeighbor ? 1 : 2;
+      u.equip -= 1 * mult;
+      u.org -= 15 * mult;
+      logEvent(`⚠ ${u.name} 断补给${!friendlyNeighbor?'(被包围)':''} -${1*mult}HP`);
+      if (u.equip <= 0) {
+        logEvent(`💀 ${u.name} 因断补给覆灭`);
+        removeUnit(u.id);
+      }
+    }
+  }
+}
+
+function consolidateTerritory() {
+  // Simple territory consolidation: hexes with friendly units become owned
+  for (let id in units) {
+    const u = units[id];
+    const h = getHex(u.q, u.r);
+    if (h && h.owner !== u.owner && !h.terrain.imp) {
+      // Check if no enemy unit adjacent
+      const enemyNear = hexNeighbors(u.q, u.r).some(n=>{
+        const nu = getUnitAt(n.q, n.r);
+        return nu && nu.owner !== u.owner;
+      });
+      if (!enemyNear) {
+        h.owner = u.owner;
+      }
+    }
+  }
+}
+
+// ==============================
+//  VICTORY CONDITIONS
+// ==============================
+function checkVictory() {
+  const ukCPs = capturePoints.filter(cp=>{
+    const h = getHex(cp.q, cp.r);
+    return h && h.owner === PLAYER.UK;
+  });
+  const deCPs = capturePoints.filter(cp=>{
+    const h = getHex(cp.q, cp.r);
+    return h && h.owner === PLAYER.GERMANY;
+  });
+  const total = capturePoints.length;
+
+  if (ukCPs.length >= Math.ceil(total * 0.6) && currentTurn > 5) {
+    showEndModal('🇬🇧 英军战略胜利!',
+      `盟军控制了 ${ukCPs.length}/${total} 个战略点\n\n` +
+      `西西里岛门户洞开,意大利战役即将开始!\n` +
+      `历史参考: 1943年8月17日,盟军完全占领西西里\n` +
+      `耗时38天,轴心国损失约2.9万人`);
+    return true;
+  }
+  if (deCPs.length >= Math.ceil(total * 0.6) && currentTurn > 5) {
+    showEndModal('🇩🇪 德军防御胜利!',
+      `德军控制了 ${deCPs.length}/${total} 个战略点\n\n` +
+      `轴心国成功守住了西西里岛!\n` +
+      `盟军被迫推迟意大利本土登陆计划`);
+    return true;
+  }
+  // Sudden death: if UK controls 0 points
+  if (ukCPs.length === 0 && currentTurn > 3) {
+    showEndModal('🇩🇪 德军压倒性胜利!',
+      `英军所有登陆点均被夺回!\n盟军被迫撤离西西里岛`);
+    return true;
+  }
+  // Sudden death: if DE controls 0 points
+  if (deCPs.length === 0 && currentTurn > 3) {
+    showEndModal('🇬🇧 英军压倒性胜利!',
+      `德军已无立足之地!\n西西里全岛解放`);
+    return true;
+  }
+  return false;
+}
+
+function endGameByPoints() {
+  const ukCPs = getControlledCPs(PLAYER.UK);
+  const deCPs = getControlledCPs(PLAYER.GERMANY);
+  if (ukCPs > deCPs) showEndModal('🇬🇧 英军胜利!', `回合结束\n英军: ${ukCPs} 点 vs 德军: ${deCPs} 点`);
+  else if (deCPs > ukCPs) showEndModal('🇩🇪 德军胜利!', `回合结束\n德军: ${deCPs} 点 vs 英军: ${ukCPs} 点`);
+  else showEndModal('🤝 平局', `双方各控制 ${ukCPs} 个战略点`);
+}
+
+// ==============================
+//  UI HELPERS
+// ==============================
+function showDeployModal(q, r) {
+  const modal = document.getElementById('modal');
+  const pp = getPhasePlayer();
+  const rp = reinfPoints[pp] || 0;
+  let html = `<div class="box">`;
+  html += `<h2>部署增援部队</h2>`;
+  html += `<p>目标: (${q},${r}) | ${getHex(q,r)?.terrain?.name||''}</p>`;
+  html += `<p style="color:#aaa;font-size:12px">可用兵力点: <b style="color:#f1c40f">${rp}</b></p>`;
+  for (let key in UNIT_TYPES) {
+    const ut = UNIT_TYPES[key];
+    const cost = getReinfCost(key);
+    const canAfford = rp >= cost;
+    html += `<button class="btn-secondary reinforce-btn" onclick="doDeployType('${key}',${q},${r})" ${canAfford?'':'disabled'}>`;
+    html += `${ut.icon} ${ut.name} <span style="color:${canAfford?'#f1c40f':'#e74c3c'}">[${cost}点]</span>`;
+    html += `</button>`;
+  }
+  // Italian infantry for German player — cheap but weak (60% org)
+  if (pp === PLAYER.GERMANY) {
+    const itaCost = 1;
+    const canAffordIta = rp >= itaCost;
+    const ut = UNIT_TYPES['inf'];
+    html += `<button class="btn-secondary reinforce-btn" onclick="doDeployType('inf',${q},${r},'ita')" ${canAffordIta?'':'disabled'} style="border-left:3px solid #e74c3c">`;
+    html += `🇮🇹 意大利步兵 <span style="color:${canAffordIta?'#f1c40f':'#e74c3c'};font-size:10px">[${itaCost}点·Org60%]</span>`;
+    html += `</button>`;
+  }
+  html += `<br><button class="btn-primary" onclick="closeModal()" style="margin-top:8px">取消</button>`;
+  html += `</div>`;
+  modal.innerHTML = html;
+  modal.style.display = 'flex';
+}
+
+function doDeployType(typeId, q, r, nation) {
+  const pp = getPhasePlayer();
+  const rp = reinfPoints[pp] || 0;
+  let cost = getReinfCost(typeId);
+  // Italian infantry: cheaper but weaker
+  if (nation === 'ita') cost = 1;
+  if (rp < cost) { logEvent('兵力点不足!'); return; }
+
+  // Validate: must be owned hex with no unit
+  const h = getHex(q, r);
+  if (!h || h.unitId || h.owner !== pp) { logEvent('无效的部署位置'); return; }
+
+  const ut = UNIT_TYPES[typeId];
+  const prefix = pp===PLAYER.UK?'英军':'德军';
+  const natLabel = nation==='ita'?'🇮🇹意大利':'';
+  createUnit(typeId, pp, q, r, `${prefix}${natLabel} 增援${ut.name}`, {nation: nation || null});
+  reinfPoints[pp] -= cost;
+  closeModal();
+  updateAll();
+  logEvent(`🪖 ${prefix}${natLabel} 部署 ${ut.name} 到 (${q},${r}) [-${cost}兵力点]`);
+}
+window.doDeployType = doDeployType;
+
+function showEndModal(title, msg) {
+  const modal = document.getElementById('modal');
+  modal.innerHTML = `<div class="box"><h2>${title}</h2><p style="white-space:pre-line;line-height:1.6">${msg}</p><button class="btn-primary" onclick="location.reload()">🔄 重新开始</button></div>`;
+  modal.style.display = 'flex';
+}
+
+function showModal(title, msg) {
+  const modal = document.getElementById('modal');
+  modal.innerHTML = `<div class="box"><h2>${title}</h2><p style="white-space:pre-line">${msg}</p><button class="btn-primary" onclick="closeModal()">确定</button></div>`;
+  modal.style.display = 'flex';
+}
+
+function closeModal() {
+  document.getElementById('modal').style.display = 'none';
+}
+window.closeModal = closeModal;
+
+function updateAll() {
+  updateToolbar();
+  updateUnitList();
+  updateCardUI();
+  updateCPSummary();
+  updateSidebar();
+  updateButtons();
+}
+
+// ==============================
+//  SAVE/LOAD (enhanced)
+// ==============================
+function saveGame() {
+  const state = {
+    version: SAVE_VERSION,
+    gameMode: gameMode,
+    turn: currentTurn, phase: currentPhase, player: currentPlayer,
+    reinfPoints: reinfPoints,
+    unitOrders: unitOrders,
+    capturePoints: capturePoints.map(cp=>({q:cp.q, r:cp.r, owner: getHex(cp.q,cp.r)?.owner || cp.startOwner})),
+    units: {},
+    hexOwners: [],
+    playerCards: playerCards,
+    unitCardBuffs: unitCardBuffs,
+    exploredHexes: {1: [...exploredHexes[1]], 2: [...exploredHexes[2]]},
+    riverEdges: [...RIVER_EDGES],
+  };
+  for (let id in units) {
+    const u = units[id];
+    state.units[id] = {
+      typeId:u.typeId, owner:u.owner, q:u.q, r:u.r,
+      name:u.name, equip:u.equip, org:u.org, maxOrg:u.maxOrg, order:u.order,
+      hasMoved:u.hasMoved, hasFought:u.hasFought, routed:u.routed,
+      nation: u.nation || null
+    };
+  }
+  for (let r=0; r<ROWS; r++)
+    for (let q=0; q<COLS; q++) {
+      const h = hexGrid[r][q];
+      if (h.owner !== PLAYER.NONE) state.hexOwners.push({q,r,owner:h.owner});
+    }
+  try {
+    localStorage.setItem('husky_save_v3', JSON.stringify(state));
+    logEvent('💾 游戏已保存');
+  } catch(e) { logEvent('❌ 保存失败: '+e.message); }
+}
+
+function loadGame() {
+  try {
+    const raw = localStorage.getItem('husky_save_v3');
+    if (!raw) { logEvent('❌ 无存档'); return; }
+    const state = JSON.parse(raw);
+    initMap();
+    units = {}; unitIdCounter = 1; unitOrders = {};
+    for (let id in state.units) {
+      const su = state.units[id];
+      const unit = createUnit(su.typeId, su.owner, su.q, su.r, su.name, {nation: su.nation || null});
+      unit.equip = su.equip; unit.org = su.org;
+      if (su.maxOrg) { unit.maxOrg = su.maxOrg; unit.org = Math.min(unit.org, su.maxOrg); }
+      unit.order = su.order || null;
+      unit.hasMoved = su.hasMoved || false;
+      unit.hasFought = su.hasFought || false;
+      unit.routed = su.routed || false;
+      unit.nation = su.nation || null;
+      unitIdCounter = Math.max(unitIdCounter, parseInt(id.slice(1))+1);
+      if (unit.order) unitOrders[id] = unit.order;
+    }
+    for (let ho of state.hexOwners) {
+      const h = getHex(ho.q, ho.r);
+      if (h) h.owner = ho.owner;
+    }
+    if (state.capturePoints) {
+      for (let i=0; i<Math.min(capturePoints.length, state.capturePoints.length); i++) {
+        capturePoints[i].startOwner = state.capturePoints[i].owner;
+        const h = getHex(capturePoints[i].q, capturePoints[i].r);
+        if (h) h.owner = state.capturePoints[i].owner;
+      }
+    }
+    gameMode = state.gameMode || GAME_MODE.HOTSEAT;
+    currentTurn = state.turn;
+    currentPhase = state.phase;
+    currentPlayer = state.player;
+    reinfPoints = state.reinfPoints || {1:0,2:0};
+    unitOrders = state.unitOrders || {};
+    playerCards = state.playerCards || {1:[], 2:[]};
+    unitCardBuffs = state.unitCardBuffs || {};
+    exploredHexes = state.exploredHexes ? {1: new Set(state.exploredHexes[1]||[]), 2: new Set(state.exploredHexes[2]||[])} : {1: new Set(), 2: new Set()};
+    RIVER_EDGES.clear();
+    if (state.riverEdges) { for (let key of state.riverEdges) RIVER_EDGES.add(key); }
+    visibleHexes = {1: new Set(), 2: new Set()};
+    playerActiveCards = {1:[], 2:[]}; // never persist active effects
+    selectedUnitId = null;
+    pendingOrder = null;
+    selectedActionType = ACTION_TYPE.MOVE;
+    selectedCardUid = null;
+    aiThinking = false;
+    calculateSupply();
+    updateAll();
+    logEvent('📂 读档成功 — 第'+currentTurn+'回合');
+    // Resume AI if loaded during AI phase
+    if (isAIPhase()) setTimeout(triggerAI, 800);
+  } catch(e) { logEvent('❌ 读档失败: '+e.message); }
+}
+
+// ==============================
+//  KEYBOARD SHORTCUTS
+// ==============================
+document.addEventListener('keydown', function(e) {
+  // Block shortcuts when modal or transition screen is visible
+  const modal = document.getElementById('modal');
+  const transition = document.getElementById('transition-screen');
+  if ((modal && modal.style.display !== 'none') || (transition && transition.style.display !== 'none')) {
+    if (e.key === 'Enter' || e.key === ' ') return; // let modal/transition handle these
+    if (e.key === 'Escape') { closeModal(); return; }
+    return;
+  }
+  if (e.key === 'Escape') {
+    cancelOrder();
+  } else if (e.key === 'Enter' && pendingOrder) {
+    confirmOrder();
+  } else if (e.key === 'F4') {
+    if (confirm('确定要重新开始吗?')) location.reload();
+  }
+});
+
+// ==============================
+//  BOOT
+// ==============================
+function initGame() {
+  console.log('Husky WEGO v3 initializing...');
+  resizeCanvas();
+  initMap();
+  initUnits();
+  playerCards = {1:[], 2:[]};
+  playerActiveCards = {1:[], 2:[]};
+  unitCardBuffs = {};
+  exploredHexes = {1: new Set(), 2: new Set()};
+  visibleHexes = {1: new Set(), 2: new Set()};
+  calculateSupply();
+
+  // Pre-explore all land hexes so terrain is always visible
+  for (let r=0; r<ROWS; r++) for (let q=0; q<COLS; q++) {
+    const h = getHex(q,r);
+    if (h && !h.terrain.imp) {
+      exploredHexes[PLAYER.UK].add(hexKey(q,r));
+      exploredHexes[PLAYER.GERMANY].add(hexKey(q,r));
+    }
+  }
+
+  // Center camera on Sicily
+  zoom = 1.0;
+  const cp = hexToPixel(25, 18);
+  camX = -(cp.x * zoom);
+  camY = -(cp.y * zoom);
+
+  // Show mode selection first
+  showModeSelect();
+}
+
+function showModeSelect() {
+  const modal = document.getElementById('modal');
+  modal.innerHTML = '<div class="box" style="min-width:380px">'+
+    '<h2>⚔ 哈士奇行动 · 西西里 1943</h2>'+
+    '<p style="color:#aaa;font-size:13px;margin:8px 0">选择游戏模式</p>'+
+    '<button onclick="startGame(0)" style="display:block;width:100%;margin:6px 0;padding:12px;background:#2c3e50;color:#fff;border:2px solid #555;border-radius:8px;cursor:pointer;font-size:14px">'+
+    '👥 <b>双人热座</b><br><span style="font-size:11px;color:#aaa">两人同机轮流操作</span></button>'+
+    '<button onclick="startGame(1)" style="display:block;width:100%;margin:6px 0;padding:12px;background:#1a3a5e;color:#fff;border:2px solid #2980b9;border-radius:8px;cursor:pointer;font-size:14px">'+
+    '🇬🇧 <b>单人 vs AI</b><br><span style="font-size:11px;color:#aaa">你指挥英军，AI指挥德军</span></button>'+
+    '<button onclick="startGame(2)" style="display:block;width:100%;margin:6px 0;padding:12px;background:#3a1a1a;color:#fff;border:2px solid #c0392b;border-radius:8px;cursor:pointer;font-size:14px">'+
+    '🇩🇪 <b>单人 vs AI</b><br><span style="font-size:11px;color:#aaa">你指挥德军，AI指挥英军</span></button>'+
+    '</div>';
+  modal.style.display = 'flex';
+}
+
+function startGame(mode) {
+  gameMode = mode;
+  document.getElementById('modal').style.display = 'none';
+  resizeCanvas();
+
+  document.getElementById('btn-save').onclick = saveGame;
+  document.getElementById('btn-load').onclick = loadGame;
+  window.selectUnit = selectUnit;
+  window.confirmOrder = confirmOrder;
+  window.cancelOrder = cancelOrder;
+
+  // ---- Floating Action Panel ----
+  var actionPanel = document.getElementById('action-panel');
+  var apHeader = document.getElementById('ap-header');
+  var apClose = document.getElementById('ap-close');
+  var apTitle = document.getElementById('ap-title');
+  var apBody = document.getElementById('ap-body');
+  var apDragging = false, apDragX = 0, apDragY = 0, apOffX = 0, apOffY = 0;
+
+  apHeader.addEventListener('mousedown', function(e) {
+    if (e.target === apClose) return;
+    apDragging = true;
+    var rect = actionPanel.getBoundingClientRect();
+    apOffX = e.clientX - rect.left;
+    apOffY = e.clientY - rect.top;
+    actionPanel.style.transform = 'none';
+    actionPanel.style.left = rect.left + 'px';
+    actionPanel.style.top = rect.top + 'px';
+    e.preventDefault();
+  });
+  apHeader.addEventListener('touchstart', function(e) {
+    if (e.target === apClose) return;
+    if (e.touches.length === 1) {
+      apDragging = true;
+      var rect = actionPanel.getBoundingClientRect();
+      apOffX = e.touches[0].clientX - rect.left;
+      apOffY = e.touches[0].clientY - rect.top;
+      actionPanel.style.transform = 'none';
+      actionPanel.style.left = rect.left + 'px';
+      actionPanel.style.top = rect.top + 'px';
+    }
+  }, {passive: false});
+  document.addEventListener('mousemove', function(e) {
+    if (!apDragging) return;
+    var pw = actionPanel.offsetWidth, ph = actionPanel.offsetHeight;
+    actionPanel.style.left = Math.max(-pw+30, Math.min(window.innerWidth-30, e.clientX - apOffX)) + 'px';
+    actionPanel.style.top = Math.max(0, Math.min(window.innerHeight-30, e.clientY - apOffY)) + 'px';
+  });
+  document.addEventListener('touchmove', function(e) {
+    if (!apDragging) return;
+    var pw = actionPanel.offsetWidth, ph = actionPanel.offsetHeight;
+    actionPanel.style.left = Math.max(-pw+30, Math.min(window.innerWidth-30, e.touches[0].clientX - apOffX)) + 'px';
+    actionPanel.style.top = Math.max(0, Math.min(window.innerHeight-30, e.touches[0].clientY - apOffY)) + 'px';
+    e.preventDefault();
+  }, {passive: false});
+  document.addEventListener('mouseup', function() { apDragging = false; });
+  document.addEventListener('touchend', function() { apDragging = false; });
+  apClose.addEventListener('click', function() {
+    selectUnit(null);
+  });
+
+  function updateActionPanel() {
+    if (!selectedUnitId || isAIPhase() || (currentPhase !== PHASE.ORDERS_UK && currentPhase !== PHASE.ORDERS_DE)) {
+      actionPanel.style.display = 'none';
+      return;
+    }
+    var unit = getUnit(selectedUnitId);
+    if (!unit || unit.owner !== getPhasePlayer()) {
+      actionPanel.style.display = 'none';
+      return;
+    }
+    var ut = getUnitType(unit);
+    apTitle.textContent = '≡ ' + unit.name;
+    var html = '<div class="ap-unit">';
+    html += ut.icon + ' ' + ut.name;
+    if (unit.nation === 'ita') html += ' <span style="color:#90c040;font-size:9px">🇮🇹意军</span>';
+    if (unit.routed) html += ' <span style="color:#e74c3c;font-size:9px">⚠溃退</span>';
+    html += ' | 装' + unit.equip + '/' + unit.maxEquip + ' 组' + unit.org + '/' + unit.maxOrg;
+    html += '<br>软' + ut.softAtk + ' 硬' + ut.hardAtk + ' 防' + ut.def + ' 移' + ut.mov + ' 射' + ut.rng;
+    html += ' | ' + (unit.isSupplied ? '✅' : '❌补给');
+    html += '</div>';
+
+    if (pendingOrder) {
+      html += '<div style="font-size:11px;color:#f1c40f;margin-bottom:4px">⏳ ' + describeAction(pendingOrder) + '→(' + pendingOrder.toQ + ',' + pendingOrder.toR + ')</div>';
+      html += '<div class="ap-confirm"><button class="btn-ok" onclick="confirmOrder()">✓ 确认</button><button class="btn-cancel" onclick="cancelOrder()">✗ 取消</button></div>';
+    } else if (!unit.order) {
+      html += '<div class="ap-actions">';
+      html += apBtn('🚶 移动', ACTION_TYPE.MOVE, !unit.routed);
+      html += apBtn('⚡ 急行军', ACTION_TYPE.FORCED_MARCH, !unit.routed);
+      html += apBtn('⚔ 攻击', ACTION_TYPE.ATTACK, !unit.routed);
+      html += '</div><div class="ap-actions row2">';
+      html += apBtn('🔫 移动射击', ACTION_TYPE.ADVANCE_FIRE, !unit.routed);
+      html += apBtn('🏃 快速撤退', ACTION_TYPE.RAPID_WITHDRAW, true);
+      html += '</div>';
+      html += '<div class="ap-desc">' + (ACTION_DESC[selectedActionType] || '') + '</div>';
+    } else {
+      html += '<div style="font-size:11px;color:#2ecc71">📋 已下令: ' + describeAction(unit.order) + '→(' + unit.order.toQ + ',' + unit.order.toR + ')</div>';
+    }
+
+    // ---- Tactical cards section ----
+    var pp = getPhasePlayer();
+    var hand = playerCards[pp] || [];
+    var active = playerActiveCards[pp] || [];
+    html += '<div style="border-top:1px solid #333;margin-top:6px;padding-top:4px">';
+    html += '<div style="font-size:10px;color:#e74c3c;margin-bottom:3px">🃏 战术卡';
+    if (hand.length > 0) html += ' (' + hand.length + '张)';
+    if (active.length > 0) html += ' <span style="color:#2ecc71;font-size:9px">生效:' + active.map(function(e){return e.cardIcon;}).join('') + '</span>';
+    html += '</div>';
+    if (hand.length === 0) {
+      html += '<div style="font-size:9px;color:#555">库存空 (部署阶段补给抽卡)</div>';
+    } else {
+      for (var ci = 0; ci < hand.length; ci++) {
+        var c = hand[ci];
+        var csel = selectedCardUid === c.uid ? 'border-color:#f1c40f;background:#2a2a1a' : 'border-color:#333';
+        var cneed = c.target !== 'global' ? ' <span style="color:#f39c12;font-size:8px">🎯' + (c.target==='unit'?'单位':'格') + '</span>' : '';
+        html += '<div style="background:#1a2a1a;border:1px solid ' + csel + ';border-radius:3px;padding:2px 5px;margin:1px 0;cursor:pointer;font-size:9px" onclick="selectCard(' + c.uid + ')" ondblclick="quickPlayCard(' + c.uid + ')" title="' + c.desc + '">';
+        html += c.icon + ' <b>' + c.name + '</b>' + cneed;
+        html += '<span style="float:right;color:#666;cursor:pointer" onclick="event.stopPropagation();discardCard(' + pp + ',' + c.uid + ')" title="弃牌">✕</span>';
+        html += '</div>';
+      }
+    }
+    // Selected card targeting hint
+    if (selectedCardUid) {
+      var sc = hand.find(function(c2){return c2.uid===selectedCardUid;});
+      if (sc && sc.target !== 'global') {
+        html += '<div style="font-size:8px;color:#f1c40f;margin-top:2px">🎯 点' + (sc.target==='unit'?'己方单位':'地图格') + '使用 ' + sc.icon + sc.name + '</div>';
+      }
+    }
+    html += '</div>';
+
+    apBody.innerHTML = html;
+    // Set initial position if not yet placed (avoid sticking to bottom)
+    if (!actionPanel._placed) {
+      actionPanel._placed = true;
+      actionPanel.style.top = Math.max(60, window.innerHeight * 0.15) + 'px';
+      actionPanel.style.left = Math.max(10, window.innerWidth - 370) + 'px';
+    }
+    actionPanel.style.display = 'block';
+  }
+
+  function apBtn(label, type, enabled) {
+    var sel = selectedActionType === type ? ' active' : '';
+    var dis = enabled ? '' : ' disabled';
+    return '<button class="ap-btn' + sel + '" onclick="setActionType(\'' + type + '\')"' + (enabled ? '' : ' disabled') + '>' + label + '</button>';
+  }
+
+  // Hook into updateSidebar to also update the floating panel
+  var _origUpdateSidebar = updateSidebar;
+  updateSidebar = function() {
+    _origUpdateSidebar();
+    updateActionPanel();
+  };
+
+  function gameLoop() {
+    updateFOW();
+    render();
+    requestAnimationFrame(gameLoop);
+  }
+  gameLoop();
+
+  // Start draft, then begin game when done
+  startInitialDraft(function(){
+    startTurn();
+    updateAll();
+    logEvent('⚔ 哈士奇行动 · WEGO版');
+    logEvent('部署阶段: 在己方占领点点击部署增援');
+    if (gameMode === GAME_MODE.AI_VS_DE) {
+      setTimeout(triggerAI, 1000);
+    }
+  });
+}
+window.startGame = startGame;
+
+window.addEventListener('load', initGame);
+if (document.readyState === 'complete') { console.log('DOM ready, booting...'); initGame(); }
+</script>
+</body>
+</html>
