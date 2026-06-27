@@ -1,7 +1,7 @@
 ═══════════════════════════════════════════════════════════════
   哈士奇行动 · 西西里 1943  — 兵棋机制参考手册
   Operation Husky · Sicily Wargame — Game Mechanics Reference
-  版本: v3.3 (2026-06-18) | 文件: husky.html (~4100行)
+  版本: v3.1 (2026-06-17) | 文件: husky.html (~3740行)
 ═══════════════════════════════════════════════════════════════
 
 目  录
@@ -34,7 +34,7 @@
 │ inf 步 │  ■   │  8   │  2   │  7  │  4  │  1   │ 10  │ 100 │  2   │  3   │
 │ arm 装 │  ◆   │  6   │  9   │  5  │  6  │  1   │  8  │  80 │  4   │  4   │
 │ art 炮 │  ●   │ 10   │  5   │  3  │  3  │  2   │  6  │  60 │  3   │  3   │
-│ eng 工 │  ▲   │  4   │  3   │  6  │  4  │  1   │  8  │  90 │  2   │  3   │
+│eng 工 │  ▲   │  4   │  3   │  6  │  4  │  1   │  8  │  90 │  2   │  3   │
 │ rec 侦 │  ◇   │  3   │  2   │  4  │  5  │  1   │  6  │  70 │  2   │  6   │
 └────────┴──────┴──────┴──────┴─────┴─────┴──────┴─────┴─────┴──────┴──────┘
 
@@ -56,7 +56,6 @@
 
 增援费用 (REINF_COST):
   步兵=2兵力点 | 装甲=5 | 炮兵=4 | 工兵=3 | 侦察=3
-  意大利步兵=1兵力点（仅德军可部署，Org×0.60 + 士气-1）
 
 ═══════════════════════════════════════════════════════════════
 二、地形类型 (TERRAIN)
@@ -74,11 +73,8 @@
 │ 山地   │ m  │   4  │  3   │ #6a6a3a  │  ✅    │   44       │
 │ 城镇   │ t  │   1  │  2   │ #c4956a  │  ✅    │   14       │
 │ 城市   │ u  │   1  │  3   │ #b8543a  │  ✅    │    4       │
-│ 河流   │ r  │  —   │  —   │  #2a5a7a  │  ⚠弃用 │ 已改为边线  │
+│ 河流   │ r  │   3  │ -1   │ #2a5a7a  │  ✅    │    0 (未用) │
 └────────┴────┴──────┴──────┴──────────┴────────┴────────────┘
-
-⚠ 河流已从格子地形改为六角格边线 (RIVER_EDGES Set)。跨河移动+2，跨河攻击防守方+2防御。
-  桥梁工兵卡消除跨河惩罚。地图编辑器按R键切换河流边模式，点击边线即可画河。
 
 大写字母 = 有道路 (P/H/T/U → 道路版)，移动消耗降为 0.5
   道路格数: P=321, H=187, T=14, U=4 (总计526格含道路，占陆地85%)
@@ -140,10 +136,7 @@
   atkPower *= Org惩罚 (Org<50%: ×0.7, Org<25%: ×0.5)
   atkPower *= 补给惩罚 (断补: ×0.6)
   atkPower += 组合武器加成 (2格内有己方炮兵且Org>30: +2, 自身非炮兵)
-  atkPower += 战术卡加成 (突袭命令+3, 代码: unitCardBuffs.atkBonus)
-  atkPower *= 移动射击惩罚 (isAdvanceFire: ×0.5)
   atkDiceBonus = 琴图里佩效果 + 战术卡效果(空中支援+2/炮火支援+3)
-  atkDiceBonus -= 守方烟雾掩护减值 (defenseDice, 代码: getActiveEffectVal(defUnit.owner,'defenseDice'))
 
 防御力计算:
   defPower = def + max(0, terrainDef) × 2
@@ -152,7 +145,6 @@
   defPower += 溃退惩罚 -3
   defPower += 特效加成 (特罗伊纳+2, 拉古萨+1)
   defPower += 战术卡加成 (防御工事+3)
-  defPower += 跨河防御加成 (相邻格有河流边: +2, 代码: hasRiverEdge)
   defPower *= Org惩罚 (Org<30: ×0.7)
   defPower *= 补给惩罚 (断补: ×0.6)
 
@@ -192,7 +184,6 @@
 士气检定（战后触发）:
   条件: 战后 Org < 最大Org的30%
   检定: roll2d6() <= max(1, floor(当前Org / 5))
-  意军惩罚: 阈值额外-1（代码: nation==='ita' → threshold = max(1, threshold-1)）
   成功: 坚守阵地
   失败: 溃退
 
@@ -289,14 +280,14 @@ BFS扩散 (calculateSupply):
 补给抽卡 (buyTacticalCard):
   - 部署阶段可花费 CARD_BUY_COST=2 兵力点抽1张卡
   - 按钮文字: "🛒 消耗2补给抽卡"
-  - 随机从15张卡池中抽取
+  - 随机从12张卡池中抽取
 
 卡牌类型:
   - global (全局牌): 点击即用，效果应用到全阵营
   - unit (单位牌): 点卡→点己方单位，效果绑定到unitCardBuffs[unitId]
   - hex (六角格牌): 点卡→点目标格，效果作用于格子
 
-15张战术卡:
+12张战术卡:
 ┌──────────┬──────┬──────┬──────────────────────────────────────┐
 │ 卡名     │ 图标 │ 目标 │ 效果                                 │
 ├──────────┼──────┼──────┼──────────────────────────────────────┤
@@ -311,10 +302,7 @@ BFS扩散 (calculateSupply):
 │ 战地医院 │ 🏥   │全局  │ 所有己方溃退单位恢复 (removeRout=1)   │
 │ 海军炮击 │ 🚢💥 │六角格│ 目标敌占格装备-1~3 (navalStrike=3)    │
 │ 空降补给 │ 🪂   │单位  │ 指定单位2回合免断补 (supplyImmune=2)   │
-│ 桥梁工兵 │ 🌉   │全局  │ 本回合跨河无惩罚 (riverRoad=1)         │
-│ 突袭命令 │ ⚡   │单位  │ 指定单位本回合攻击力+3 (atkBonus=3)    │
-│ 前线救护 │ 💊   │单位  │ 指定单位立即+25组织度 (orgRepair=25)   │
-│ 烟雾掩护 │ 🌫   │全局  │ 敌军攻击己方时攻击骰-1 (defenseDice=1) │
+│ 桥梁工兵 │ 🌉   │全局  │ 本回合河流视为道路mc=0.5 (riverRoad=1) │
 └──────────┴──────┴──────┴──────────────────────────────────────┘
 
 废弃/使用: discardCard — 直接从库存删除，永久消耗
@@ -322,7 +310,7 @@ BFS扩散 (calculateSupply):
 效果值: getActiveEffectVal(player, effType) — 返回叠加值
 
 ═══════════════════════════════════════════════════════════════
-十、战略据点与特殊效果 (19个: 5城+14镇)
+十、战略据点与特殊效果 (18个: 4城+14镇)
 ═══════════════════════════════════════════════════════════════
 
 🏙 城市 (supply≥5):
@@ -330,10 +318,9 @@ BFS扩散 (calculateSupply):
 │ 据点     │ 坐标 │ 初始 │ 补给 │ 特殊效果                    │
 ├──────────┼──────┼──────┼──────┼─────────────────────────────┤
 │ 巴勒莫   │(45,5)│ 德军 │ 6    │ 补给半径+3 (supplyRadiusBonus)│
-│ 墨西拿   │(25,7)│ 德军 │ 5    │ DE+1援兵/回合; UK占领=立即胜 │
+│ 墨西拿   │(25,7)│ 德军 │ 5    │ DE+2援兵/回合; UK占领=立即胜 │
 │ 卡塔尼亚 │(37,17)│德军 │ 5    │ DE守军Org+20%(defOrgBonus)   │
 │ 锡拉库萨 │(38,24)│英军 │ 5    │ 额外+1补给 (supplyBonus=1)   │
-│ 马耳他   │(18,38)│英军 │ 7+3  │ +3补给 + UK+2援兵/回合       │
 └──────────┴──────┴──────┴──────┴─────────────────────────────┘
 
 🏘 城镇 (supply=2~4):
@@ -356,15 +343,14 @@ BFS扩散 (calculateSupply):
 │ 兰达佐       │(38,9)│德军 │ 2    │ UK占领→DE墨西拿方向断补30% │
 └──────────────┴──────┴──────┴──────┴──────────────────────────┘
 
-初始控制: UK=5据点  DE=14据点
+初始控制: UK=4据点  DE=14据点
 
 效果实现细节:
   - palermo.supplyRadiusBonus=3 → calculateSupply maxRange+=3
-  - messina.onTurnStart → startTurn中德军+1援兵点
+  - messina.onTurnStart → startTurn中德军+2援兵点
   - messina.onCapture(UK) → 立即showEndModal胜利
   - catania.defenderOrgBonus(DE)=0.20 → resolveCombat defMult=1.20
   - syracuse.supplyBonus=1 → getSupplyValue +=1
-  - malta.supplyBonus=3 + onTurnStart(UK) +2援兵
   - gela.onCapture(DE) → 英军全军org -= maxOrg*0.25
   - enna.visionBonus=3 → calculateVisibility visRange+=3(单位位于恩纳时)
   - caltagirone → getMoveCost: 控制方所有单位移动消耗 max(0.5, cost-0.5)
@@ -405,7 +391,7 @@ BFS扩散 (calculateSupply):
   ├─ 重置所有单位 hasMoved/hasFought/order
   ├─ 清空 unitOrders, selectedUnitId, pendingOrder
   ├─ 计算双方补给总值 → reinfPoints = max(1, floor(supTotal/3))
-  ├─ 墨西拿(DE控制): DE额外+1兵力点 / 马耳他(UK控制): UK额外+2兵力点
+  ├─ 墨西拿(DE控制): DE额外+2兵力点（在startTurn中，不在SPECIAL_EFFECTS.onTurnStart）
   └─ updateAll()
 
 Phase 1: 英军部署 (DEPLOY_UK)
@@ -466,8 +452,7 @@ Phase 5: 回合执行 (RESOLVE):
   hexOwners: [{q, r, owner}]
   playerCards: {1: [cardUids], 2: [cardUids]}
   playerActiveCards: {1: [activeEffects], 2: [activeEffects]}
-  unitCardBuffs: {unitId: {movBonus, defBonus, atkBonus, supplyImmune}}
-  riverEdges: ["q1,r1|q2,r2", ...]
+  unitCardBuffs: {unitId: {movBonus, defBonus, supplyImmune}}
   exploredHexes: {1: [hexKeys], 2: [hexKeys]}
   unitIdCounter: 下一个单位ID
 
@@ -486,9 +471,8 @@ Phase 5: 回合执行 (RESOLVE):
   左键      — 选择/点击六角格 (handleHexClick)
 
 地图编辑器 (map_editor.html):
-  s/b/p/h/m/t/u   — 切换地形
+  s/b/p/h/m/t/u/r — 切换地形
   Shift+H/P/T/U   — 道路版地形
-  R               — 切换河流边模式（点击六角格边线画河）
   F               — 切换森林模式
   滚轮            — 缩放 (zoom: 0.5~3.0)
   右键拖动        — 平移
@@ -500,23 +484,21 @@ Phase 5: 回合执行 (RESOLVE):
 
 功能:
   - 50×40 六角格，HEX_SIZE=18
-  - 8种地形(s/b/p/h/m/t/u) + 大写道路版(H/P/T/U) + 森林叠加层 + 河流边
+  - 9种地形(s/b/p/h/m/t/u/r) + 大写道路版(H/P/T/U) + 森林叠加层
   - 左键填色（按住拖拽连续填色）、右键平移、滚轮缩放
   - 据点标注模式(📍): 下拉菜单选据点→点地图标注
-  - 河流边模式(🌊): R键或复选框切换，点击六角格边线 toggle 河流
   - 森林模式(🌲): F键或复选框切换，点击叠加绿色条纹
-  - "📋 复制→游戏格式" — 一键导出MAP_DATA+FOREST_DATA+RIVER_EDGES+CAPTURE_POINTS
+  - "📋 复制→游戏格式" — 一键导出MAP_DATA+FOREST_DATA+CAPTURE_POINTS
   - "📥 从husky.html加载" — 读取游戏文件中的地图数据覆盖编辑器
-  - "💾 保存map_data" — 下载txt格式 (===MAP_DATA=== / ===FOREST_DATA=== / ===RIVER_EDGES===)
+  - "💾 保存map_data" — 下载txt格式 (===MAP_DATA=== / ===FOREST_DATA===)
   - "📁 加载map_data" — 支持txt和JS两种格式
   - "🧹 清除据点" — 清除所有据点标注
   - 导出格式自动包含逗号，可直接替换husky.html中的数组
 
-模式切换（已修复同步, 2026-06-18）:
-  - 点击palette按钮/键盘地形快捷键→清除森林/据点/河流边模式
-  - R键切换河流边→清除森林和据点模式并同步复选框
-  - F键切换森林→清除据点和河流边模式并同步复选框
-  - 复选框切换→互斥（森林⇔据点⇔河流边）并调用updateModeUI()
+模式切换（已修复同步, 2026-06-15）:
+  - 点击palette按钮/键盘地形快捷键→清除森林和据点模式
+  - F键切换森林→清除据点模式并同步复选框
+  - 复选框切换→互斥（森林⇔据点）并调用updateModeUI()
 
 ═══════════════════════════════════════════════════════════════
 十六、AI 系统
@@ -537,8 +519,8 @@ AI下令 (runAIOrders):
   - 单位指令后被标记，不再重复处理
 
 AI用卡 (runAICards):
-  - 全局卡: 近敌>=3用attackDice, >=2用equipRepair/defenseDice/supplyRadius, 有溃退用removeRout
-  - 单位卡: atkBonus找最强单位, orgRepair找Org最低(<50%)单位
+  - 60%概率使用手牌中的全局卡
+  - 单位卡找最强己方单位使用
 
 AI阶段检测 (isAIPhase):
   - UK_VS_AI模式: 德军回合为AI
@@ -557,41 +539,8 @@ AI阶段人类交互:
   - 读档后若处于AI阶段自动调用triggerAI()恢复
 
 ═══════════════════════════════════════════════════════════════
-附录A：数据一致性记录 (2026-06-18)
+附录A：数据一致性记录 (2026-06-17)
 ═══════════════════════════════════════════════════════════════
-
-2026-06-18 河流边线+bug修复+新卡+平衡:
-
-  🌊 河流边线系统:
-    1. RIVER_EDGES Set + EDGE_DEFS全局常量替代两处重复内联常量
-    2. getMoveCost新增fromQ/fromR参数, 跨河+2移动力
-    3. resolveCombat跨河攻击防守方+2防御
-    4. 桥梁工兵卡: "河流视为道路"→"跨河无惩罚"
-    5. drawHex河流边蓝线渲染 (仅字典序较小格画)
-    6. 地图编辑器R键河流边模式 + 所有格式导出/导入支持
-
-  🐛 Bug修复 (Round 3, 7项):
-    7. cp.startOwner错误突变 → 只改ch.owner (数据损坏修复)
-    8. 攻击方覆灭else if → 独立if (互相毁灭残留修复)
-    9. 回合战报动作名驼峰/下划线不匹配 → 补充映射
-    10. ZOC补给阻断不尊重侦察兵noZOC → 检查!ut.noZOC
-    11. 部署确认"保留到下回合"→"将会作废" (误导修复)
-    12. 路径验证漏了战术卡movBonus → 加入unitCardBuffs
-    13. 死代码caltagirone.moveBonus移除
-
-  🆕 新战术卡 (3张):
-    14. 突袭命令(⚡): unitAtkBonus +3攻击
-    15. 前线救护(💊): orgRepair +25组织
-    16. 烟雾掩护(🌫): defenseDice 敌军攻骰-1
-    17. AI升级: 支持unit卡 (找最强/最残单位)
-
-  ⚖ 平衡调整:
-    18. 🇲🇹 马耳他据点 (18,38): city supply:7+3, UK+2援兵/回合
-    19. 墨西拿援兵 +2→+1
-    20. 英军增援 6→11/回合, 德军 16→15/回合
-    21. 增援比 1:2.7→1:1.36
-
-2026-06-17 新增功能/修复:
 
 2026-06-15 审查修复:
   1. map_data.txt MAP_DATA/FOREST_DATA 缺少逗号 → 补全
@@ -617,7 +566,7 @@ AI阶段人类交互:
     11. 首回合自动胜利 — checkVictory加currentTurn>5守卫
 
   游戏机制 (3项):
-    12. 意军士气差异化 — nation:'ita', maxOrg×0.60, 士气阈值-1 (2026-06-18: -2→-1修复, 增加max(1,...)保底)
+    12. 意军士气差异化 — nation:'ita', maxOrg×0.60, 士气阈值-2
     13. 炮兵防御支援火力 — 守方2格内炮兵+2def, 炮兵-5org
     14. 侦察兵mov:8→5 + 丘陵mc:2→3 + 山地mc:3→4
 
@@ -634,20 +583,20 @@ AI阶段人类交互:
     22. 阶段结束确认×2 — 有未使用资源时confirm()
     23. 读档AI恢复 — loadGame后AI阶段自动triggerAI
 
-验证结果 (2026-06-18):
-  - 括号匹配: {1099/1099, (2229/2229, [381/381 ✅
-  - 代码行数: ~4000行
+验证结果 (2026-06-17):
+  - 括号匹配: {1045/1045, (2062/2062, [349/349 ✅
+  - 代码行数: ~3740行
   - SAVE_VERSION=3, 存档key: husky_save_v3
-  - 32单位, 19据点(含马耳他), 50×40六角格
-  - 森林36格, 河流0格(已改为边线系统RIVER_EDGES)
+  - 32单位, 18据点, 50×40六角格
+  - 森林36格, 河流0格(代码完整支持)
 
 已知事项:
-  - 河流已从格子地形改为六角格边线 (RIVER_EDGES Set)，编辑器R键画河
-  - 马耳他位于(18,38)小岛，四周环海，地面部队无法到达
+  - 地图上未使用河流(r)地形，但代码完整支持
   - caltagirone效果通过getMoveCost动态实现
-  - 意军2个单位(利沃诺师1营+2营, nation:'ita')
-  - 15张战术卡 (新增突袭命令/前线救护/烟雾掩护)
+  - 岛屿形状为团块而非西西里三角（设计选择）
+  - 森林覆盖仅36格（地图编辑器中可继续绘制）
+  - 意军仅利沃诺师1个单位(nation:'ita')
 
 ═══════════════════════════════════════════════════════════════
-                    文档结束 | 2026-06-18
+                    文档结束 | 2026-06-17
 ═══════════════════════════════════════════════════════════════
