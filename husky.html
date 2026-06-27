@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -15,6 +15,11 @@ body{background:#1a1a2e;font-family:"Microsoft YaHei",sans-serif;overflow:hidden
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
 .badge-uk{background:#1a5276;color:#85c1e9}
 .badge-de{background:#641e16;color:#f1948a}
+.weather-badge{padding:3px 10px;border-radius:3px;font-size:12px;font-weight:bold;white-space:nowrap}
+.weather-clear{background:#1a4a2a;color:#2ecc71;border:1px solid #27ae60}
+.weather-rain{background:#1a3a4a;color:#85d0e9;border:1px solid #3498db}
+.weather-storm{background:#2a1a1a;color:#e74c3c;border:1px solid #c0392b}
+.weather-fog{background:#2a2a3a;color:#bbb;border:1px solid #777}
 #sidebar{grid-column:1;grid-row:2;background:#1b1b2f;overflow-y:auto;padding:10px;border-right:1px solid #333;display:flex;flex-direction:column;gap:8px}
 #sidebar h3{font-size:13px;color:#e74c3c;border-bottom:1px solid #333;padding-bottom:4px;margin-bottom:2px}
 #sidebar .unit-card{background:#222;border-radius:6px;padding:7px 9px;cursor:pointer;border:2px solid transparent;font-size:11px;transition:all 0.15s}
@@ -93,6 +98,7 @@ body{background:#1a1a2e;font-family:"Microsoft YaHei",sans-serif;overflow:hidden
   <span id="player-badge" class="player-badge badge-uk">🇬🇧 英军 (P1)</span>
   <span id="supply-info" class="info">补给: --</span>
   <span id="vp-info" class="info">占领: --</span>
+  <span id="weather-info" class="weather-badge weather-clear">☀️ 晴天 · 无效果</span>
 </div>
 
 <div id="sidebar">
@@ -104,6 +110,7 @@ body{background:#1a1a2e;font-family:"Microsoft YaHei",sans-serif;overflow:hidden
   </div>
   <div id="reinf-info" class="supply-info"></div>
   <div id="cp-summary" class="supply-info" style="font-size:10px"></div>
+  <div id="weather-log" style="font-size:10px;color:#999;border-top:1px solid #333;padding-top:4px;margin-top:4px;max-height:100px;overflow-y:auto"></div>
   <div id="selected-info" style="font-size:11px;color:#888;margin-top:4px;border-top:1px solid #333;padding-top:6px">
     点击地图上的己方单位选中<br>再点击目标格下达命令
   </div>
@@ -122,6 +129,8 @@ body{background:#1a1a2e;font-family:"Microsoft YaHei",sans-serif;overflow:hidden
 <div id="bottombar">
   <button class="btn-green" id="btn-end-phase">✓ 英军完成部署</button>
   <button class="btn-gold" id="btn-resolve" style="display:none">⚡ 执行回合</button>
+  <button class="btn-secondary" id="btn-supply" title="切换补给覆盖图 (S键)">🔍 补给</button>
+  <button class="btn-secondary" id="btn-territory" title="切换领土归属显示 (T键)">🗺 领土</button>
   <button class="btn-secondary" id="btn-save">💾 存档</button>
   <button class="btn-secondary" id="btn-load">📂 读档</button>
   <span id="log" style="flex:1">就绪。英军请在己方占领点部署单位。</span>
@@ -162,6 +171,21 @@ const PHASE = {
   ORDERS_UK: 3,
   ORDERS_DE: 4,
   RESOLVE: 5
+};
+
+// Weather system — changes every 2 turns
+const WEATHER = {
+  CLEAR: 0,       // 晴天
+  LIGHT_RAIN: 1,  // 小雨
+  HEAVY_STORM: 2, // 暴雨
+  DENSE_FOG: 3    // 浓雾
+};
+
+const WEATHER_INFO = {
+  [WEATHER.CLEAR]:       {name:'☀️ 晴天', icon:'☀️', movePenalty:0, visionPenalty:0, atkDiePenalty:0, noArtySupport:false, noOrgRecovery:false, desc:'无效果'},
+  [WEATHER.LIGHT_RAIN]:  {name:'🌧 小雨', icon:'🌧', movePenalty:0, visionPenalty:1, atkDiePenalty:0, noArtySupport:false, noOrgRecovery:false, desc:'视野-1'},
+  [WEATHER.HEAVY_STORM]: {name:'⛈ 暴雨', icon:'⛈', movePenalty:2, visionPenalty:2, atkDiePenalty:1, noArtySupport:true,  noOrgRecovery:true,  desc:'移动+2 视野-2 攻骰-1 无炮援'},
+  [WEATHER.DENSE_FOG]:   {name:'🌫 浓雾', icon:'🌫', movePenalty:0, visionPenalty:2, atkDiePenalty:0, noArtySupport:false, noOrgRecovery:false, desc:'视野-2(侦察-1)'},
 };
 
 // Movement action types
@@ -576,7 +600,7 @@ function runAIDeploy() {
       return;
     }
   }
-  var prefOrder = player===PLAYER.UK ? ['arm','inf','art','eng','rec'] : ['inf','art','eng','inf','rec'];
+  var prefOrder = player===PLAYER.UK ? ['arm','inf','art','eng','rec'] : ['inf','art','eng','rec'];
   for (var i=0; i<myCPs.length; i++) {
     var cp = myCPs[i];
     for (var j=0; j<prefOrder.length; j++) {
@@ -809,6 +833,21 @@ let unitOrders = {};
 let reinfPoints = {1:0, 2:0}; // supply points for buying units
 let eventLog = [];
 let turnStats = null; // collected during resolveTurn for end-of-turn stats panel
+let currentWeather = WEATHER.CLEAR; // rolled at start of odd turns, persists for 2 turns
+let weatherHistory = []; // {turn, weather} records
+let showSupplyOverlay = false; // toggle supply heat map
+let showTerritoryOverlay = false; // toggle territory ownership view
+
+// Roll random weather (Mediterranean summer weights)
+function rollWeather() {
+  const r = Math.random();
+  if (r < 0.40)      currentWeather = WEATHER.CLEAR;
+  else if (r < 0.65) currentWeather = WEATHER.LIGHT_RAIN;
+  else if (r < 0.80) currentWeather = WEATHER.HEAVY_STORM;
+  else               currentWeather = WEATHER.DENSE_FOG;
+}
+
+function getWeatherInfo() { return WEATHER_INFO[currentWeather]; }
 
 function setActionType(type) {
   selectedActionType = type;
@@ -961,6 +1000,15 @@ function calculateVisibility() {
       // If recon card active, all enemy hexes are visible — handled per-player
       const ut = getUnitType(u);
       let visRange = ut.vision || 3;
+      // Weather vision penalty: recon units only -1 in fog, others full penalty
+      const wInfo = getWeatherInfo();
+      if (wInfo.visionPenalty > 0) {
+        if (currentWeather === WEATHER.DENSE_FOG && ut.id === 'rec') {
+          visRange = Math.max(1, visRange - 1); // recon still effective in fog
+        } else {
+          visRange = Math.max(1, visRange - wInfo.visionPenalty);
+        }
+      }
       // Enna: +3 vision for unit on the Enna CP
       const ennaCP = capturePoints.find(cp=>cp.effect==='enna');
       if (ennaCP && u.q===ennaCP.q && u.r===ennaCP.r) {
@@ -1254,7 +1302,7 @@ function initMap() {
       let owner = PLAYER.NONE;
       // Territory determined by nearest CP owner (set below)
       const hasForest = FOREST_DATA[r] && FOREST_DATA[r][q] === '1';
-      hexGrid[r][q] = {q, r, terrain:t, road, forest:hasForest, owner, unitId:null, supplyLevel:0};
+      hexGrid[r][q] = {q, r, terrain:t, road, forest:hasForest, owner, unitId:null, supplyUK:0, supplyDE:0};
     }
   }
   capturePoints = CAPTURE_POINTS.map(cp=>({...cp}));
@@ -1320,6 +1368,7 @@ function createUnit(typeId, owner, q, r, name, opts) {
     routed: false,         // rout status
     order: null,
     nation: (opts && opts.nation) || null,
+    veteran: false,            // promoted after killing an enemy
   };
   units[id] = unit;
   const h = getHex(q, r);
@@ -1377,6 +1426,10 @@ function getMoveCost(q, r, unit, fromQ, fromR) {
     }
   }
   if (h.forest) cost += 1;  // forest adds +1 move cost to any terrain
+  // Weather move penalty: non-road hexes only
+  if (!h.road) {
+    cost += getWeatherInfo().movePenalty;
+  }
   // Special: Caltagirone road hub — if owner controls it, all move costs -0.5 (min 0.5)
   const caltCP = capturePoints.find(cp=>cp.effect==='caltagirone');
   if (caltCP) {
@@ -1457,6 +1510,8 @@ function getReachableHexes(unit, movMultiplier = 1.0) {
   const startKey = hexKey(unit.q, unit.r);
   const ut = getUnitType(unit);
   let maxMoves = Math.floor(ut.mov * movMultiplier);
+  // Veteran bonus: +1 movement
+  if (unit.veteran) maxMoves += 1;
   // Tactical card: unit movement bonus (forced march order)
   if (unitCardBuffs[unit.id] && unitCardBuffs[unit.id].movBonus) {
     maxMoves += unitCardBuffs[unit.id].movBonus;
@@ -1598,8 +1653,9 @@ function drawHex(ctx, q, r) {
   ctx.stroke();
 
   // Supply overlay — only visible hexes and for current player
-  if (visible && h.supplyLevel > 0.2 && h.owner === currentPlayer) {
-    ctx.fillStyle = `rgba(255,255,255,${Math.min(0.25, h.supplyLevel*0.15)})`;
+  const supField = currentPlayer === PLAYER.UK ? 'supplyUK' : 'supplyDE';
+  if (visible && (h[supField] || 0) > 0.2 && h.owner === currentPlayer) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.min(0.25, (h[supField]||0)*0.15)})`;
     ctx.fill();
   }
 
@@ -1735,13 +1791,24 @@ function drawUnit(ctx, unit) {
   ctx.fillStyle = orgPct > 0.5 ? '#2980b9' : orgPct > 0.2 ? '#f39c12' : '#e74c3c';
   ctx.fillRect(barX, barY2, barW * orgPct, barH);
 
-  // Bottom: unit size indicator
+  // Bottom: unit size indicator + veteran star
   const botY = barY2 + barH + 1*z;
   ctx.fillStyle = '#999';
   ctx.font = `${Math.max(5, 7*z)}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('II', cx + cw/2, (botY + cy + ch)/2);  // II = battalion
+  const botCenterY = (botY + cy + ch)/2;
+  if (unit.veteran) {
+    // Veteran star on the left, size on the right
+    ctx.fillStyle = '#f1c40f';
+    ctx.font = `bold ${Math.max(7, 10*z)}px sans-serif`;
+    ctx.fillText('★', cx + cw/2 - 8*z, botCenterY);
+    ctx.fillStyle = '#999';
+    ctx.font = `${Math.max(5, 7*z)}px sans-serif`;
+    ctx.fillText('II', cx + cw/2 + 6*z, botCenterY);
+  } else {
+    ctx.fillText('II', cx + cw/2, botCenterY);  // II = battalion
+  }
 
   // Order marker (small triangle at top-right)
   if (unit.order) {
@@ -1803,6 +1870,139 @@ function render() {
   for (let r = rMin; r <= rMax; r++) {
     for (let q = qMin; q <= qMax; q++) {
       drawHex(ctx, q, r);
+    }
+  }
+
+	  // ---- SUPPLY OVERLAY ----
+  if (showSupplyOverlay) {
+    const viewer = getViewer();
+    for (let r = rMin; r <= rMax; r++) {
+      for (let q = qMin; q <= qMax; q++) {
+        const h = getHex(q, r);
+        if (!h || h.terrain.imp) continue;
+        // Get supply level for current viewer; in RESOLVE (viewer=NONE) show hex owner's supply
+        let sl;
+        if (viewer === PLAYER.NONE) {
+          sl = (h.owner === PLAYER.UK) ? (h.supplyUK || 0) : (h.owner === PLAYER.GERMANY) ? (h.supplyDE || 0) : 0;
+        } else if (viewer === PLAYER.UK) {
+          sl = h.supplyUK || 0;
+        } else {
+          sl = h.supplyDE || 0;
+        }
+        // No FOW on supply overlay — the per-player split already ensures
+        // the player only sees their own supply network.
+        const wp = hexToPixel(q, r);
+        const sc = hexCorners(wp.x, wp.y).map(c => worldToScreen(c.x, c.y));
+        let rCol, gCol, bCol, alpha, textAlpha;
+        if (sl >= 0.75) {
+          rCol = 46; gCol = 204; bCol = 113; alpha = 0.30; textAlpha = 0.7;  // green
+        } else if (sl >= 0.5) {
+          rCol = 241; gCol = 196; bCol = 15; alpha = 0.30; textAlpha = 0.7;  // yellow
+        } else if (sl >= 0.25) {
+          rCol = 230; gCol = 126; bCol = 34; alpha = 0.30; textAlpha = 0.7;  // orange
+        } else {
+          rCol = 40; gCol = 40; bCol = 50; alpha = 0.15; textAlpha = 0.35;   // dim gray for low/no supply
+        }
+        // ZOC cutoff check: hex has supply but adjacent to enemy ZOC
+        if (sl >= 0.25) {
+          const owner = h.owner;
+          if (owner !== PLAYER.NONE) {
+            const zocBlocked = hexNeighbors(q, r).some(n => {
+              const u2 = getUnitAt(n.q, n.r);
+              if (!u2 || u2.owner === owner) return false;
+              const u2t = getUnitType(u2);
+              return !u2t || !u2t.noZOC;
+            });
+            if (zocBlocked) {
+              // Draw red border for ZOC-blocked supply edge
+              ctx.beginPath();
+              ctx.moveTo(sc[0].x, sc[0].y);
+              for (let i = 1; i < 6; i++) ctx.lineTo(sc[i].x, sc[i].y);
+              ctx.closePath();
+              ctx.strokeStyle = 'rgba(231,76,60,0.7)';
+              ctx.lineWidth = Math.max(2, 3 * zoom);
+              ctx.setLineDash([3 * zoom, 2 * zoom]);
+              ctx.stroke();
+              ctx.setLineDash([]);
+              alpha = 0.15; // dim the fill for blocked hexes
+            }
+          }
+        }
+        // Fill hex
+        ctx.beginPath();
+        ctx.moveTo(sc[0].x, sc[0].y);
+        for (let i = 1; i < 6; i++) ctx.lineTo(sc[i].x, sc[i].y);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(${rCol},${gCol},${bCol},${alpha})`;
+        ctx.fill();
+        // Supply level number
+        const center = worldToScreen(wp.x, wp.y);
+        ctx.fillStyle = `rgba(255,255,255,${textAlpha})`;
+        ctx.font = `${Math.max(8, 10 * zoom)}px "Microsoft YaHei",sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(Math.round(sl * 100) + '%', center.x, center.y);
+      }
+    }
+    // Draw supply sources (controlled CPs) with glow — only viewer's side
+    for (let cp of capturePoints) {
+      const cph = getHex(cp.q, cp.r);
+      if (!cph || cph.owner === PLAYER.NONE) continue;
+      // Only show CP glow if it belongs to the viewer (or show all in RESOLVE)
+      if (viewer !== PLAYER.NONE && cph.owner !== viewer) continue;
+      if (cp.q < qMin - 1 || cp.q > qMax + 1 || cp.r < rMin - 1 || cp.r > rMax + 1) continue;
+      const wp = hexToPixel(cp.q, cp.r);
+      const center = worldToScreen(wp.x, wp.y);
+      const glowR = HEX_SIZE * 0.5 * zoom;
+      const grad = ctx.createRadialGradient(center.x, center.y, 0, center.x, center.y, glowR);
+      const cpColor = cph.owner === PLAYER.UK ? '46,134,193' : '192,57,43';
+      grad.addColorStop(0, `rgba(${cpColor},0.6)`);
+      grad.addColorStop(1, `rgba(${cpColor},0)`);
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, glowR, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+  }
+
+  // ---- TERRITORY OWNERSHIP OVERLAY ----
+  if (showTerritoryOverlay) {
+    const viewer = getViewer();
+    for (let r = rMin; r <= rMax; r++) {
+      for (let q = qMin; q <= qMax; q++) {
+        const h = getHex(q, r);
+        if (!h || h.terrain.imp) continue;
+        const visible = viewer === PLAYER.NONE || isHexVisible(q, r, viewer);
+        const explored = viewer === PLAYER.NONE || isHexExplored(q, r, viewer);
+        if (!visible && !explored) continue;
+        const wp = hexToPixel(q, r);
+        const sc = hexCorners(wp.x, wp.y).map(c => worldToScreen(c.x, c.y));
+        const center = worldToScreen(wp.x, wp.y);
+        let rCol, gCol, bCol, alpha, textAlpha;
+        if (h.owner === PLAYER.UK) {
+          rCol = 41; gCol = 128; bCol = 185; alpha = visible ? 0.25 : 0.12; textAlpha = visible ? 0.8 : 0.3;
+        } else if (h.owner === PLAYER.GERMANY) {
+          rCol = 192; gCol = 57; bCol = 43; alpha = visible ? 0.25 : 0.12; textAlpha = visible ? 0.8 : 0.3;
+        } else {
+          rCol = 100; gCol = 100; bCol = 110; alpha = visible ? 0.12 : 0.06; textAlpha = visible ? 0.4 : 0.15;
+        }
+        // Fill hex
+        ctx.beginPath();
+        ctx.moveTo(sc[0].x, sc[0].y);
+        for (let i = 1; i < 6; i++) ctx.lineTo(sc[i].x, sc[i].y);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(${rCol},${gCol},${bCol},${alpha})`;
+        ctx.fill();
+        // Owner label
+        let label = h.owner === PLAYER.UK ? 'UK' : h.owner === PLAYER.GERMANY ? 'DE' : '';
+        if (label) {
+          ctx.fillStyle = `rgba(255,255,255,${textAlpha})`;
+          ctx.font = `bold ${Math.max(7, 9 * zoom)}px "Microsoft YaHei",sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(label, center.x, center.y);
+        }
+      }
     }
   }
 
@@ -2027,13 +2227,23 @@ canvas.addEventListener('mousemove', function(e) {
       const e = getCPEffect(cp);
       if (e && e.name) tip += `\n⚡ ${e.name}`;
     }
-    if (h.supplyLevel > 0.1) tip += `\n补给水平: ${Math.round(h.supplyLevel*100)}%`;
+    if (h.supplyUK || h.supplyDE) {
+      const viewer = getViewer();
+      let sl;
+      if (viewer === PLAYER.NONE) {
+        sl = (h.owner === PLAYER.UK) ? (h.supplyUK || 0) : (h.owner === PLAYER.GERMANY) ? (h.supplyDE || 0) : 0;
+      } else {
+        sl = viewer === PLAYER.UK ? (h.supplyUK || 0) : (h.supplyDE || 0);
+      }
+      if (sl > 0.1) tip += `\n补给水平: ${Math.round(sl*100)}%`;
+    }
     if (u) {
       const viewer = getViewer();
       // Only show enemy unit details if visible
       if (u.owner === viewer || viewer === PLAYER.NONE || isHexVisible(hq.q, hq.r, viewer)) {
         const ut = getUnitType(u);
         tip += `\n${u.owner===PLAYER.UK?'🇬🇧':'🇩🇪'} ${u.name}`;
+        if (u.veteran) tip += ' ⭐老兵';
         tip += `\n${ut.icon} ${ut.name} | 装备:${u.equip}/${u.maxEquip} 组织:${u.org}/${u.maxOrg}`;
         if (u.routed) tip += ' [溃退]';
         if (u.order) tip += `\n📋 命令: ${u.order.type==='move'?'移动':'攻击'}→(${u.order.toQ},${u.order.toR})`;
@@ -2241,8 +2451,9 @@ function handleMoveTarget(selUnit, q, r, clickedUnit, phasePlayer) {
     return;
   }
 
-  // Validate movement range (include card movement bonus)
+  // Validate movement range (include card + veteran bonus)
   let maxMoves = Math.floor(selType.mov * movMult);
+  if (selUnit.veteran) maxMoves += 1;
   if (unitCardBuffs[selUnit.id] && unitCardBuffs[selUnit.id].movBonus) {
     maxMoves += unitCardBuffs[selUnit.id].movBonus;
   }
@@ -2339,6 +2550,7 @@ function updateSidebar() {
   const ut = getUnitType(unit);
 
   let html = `<b>${unit.name}</b>`;
+  if (unit.veteran) html += ` <span style="color:#f1c40f;font-size:11px">⭐</span>`;
   if (unit.nation === 'ita') html += ` <span style="color:#90c040;font-size:10px">🇮🇹意军</span>`;
   if (unit.routed) html += ` <span style="color:#e74c3c;font-size:10px">⚠溃退</span>`;
   html += `<br>`;
@@ -2393,8 +2605,9 @@ function updateUnitList() {
     const ordered = u.order ? ' ✓' : '';
     const clickHandler = interactive ? `onclick="selectUnit('${id}');updateUnitList()"` : '';
     html += `<div class="unit-card${sel}" ${clickHandler}>`;
+    const vetTag = u.veteran ? ' ⭐' : '';
     const nationTag = u.nation === 'ita' ? ' 🇮🇹' : '';
-    html += `<div class="name">${ut.icon} ${u.name}${nationTag}${ordered}</div>`;
+    html += `<div class="name">${ut.icon} ${u.name}${vetTag}${nationTag}${ordered}</div>`;
     html += `<div class="stats">装备:${u.equip}/${u.maxEquip} 组织:${u.org}/${u.maxOrg} | ${ut.name}${u.nation==='ita'?' [意军]':''}</div>`;
     html += `<div class="bar-wrap"><div class="bar-fill bar-equip" style="width:${u.equip/u.maxEquip*100}%"></div></div>`;
     html += `<div class="bar-wrap"><div class="bar-fill bar-org" style="width:${u.org/u.maxOrg*100}%"></div></div>`;
@@ -2469,6 +2682,64 @@ function updateCPSummary() {
     html += `<br><span style="color:${withoutOrders>0?'#f39c12':'#2ecc71'}">📋 已下令: ${withOrders} | 未下令: ${withoutOrders}</span>`;
   }
   div.innerHTML = html;
+}
+
+function updateWeatherLog() {
+  const div = document.getElementById('weather-log');
+  if (!div) return;
+  if (weatherHistory.length === 0) {
+    div.innerHTML = '<span style="color:#666">暂无天气记录</span>';
+    return;
+  }
+  // Show last 6 entries, most recent first
+  const recent = weatherHistory.slice(-6).reverse();
+  let html = '<span style="font-size:10px;color:#888">🌤 天气记录</span><br>';
+  for (let r of recent) {
+    const wi = WEATHER_INFO[r.weather];
+    html += `<span style="color:#aaa">T${r.turn}</span> ${wi.icon} `;
+  }
+  div.innerHTML = html;
+}
+
+function toggleSupplyOverlay() {
+  showSupplyOverlay = !showSupplyOverlay;
+  // Mutually exclusive: turn off territory when supply is toggled on
+  if (showSupplyOverlay && showTerritoryOverlay) {
+    showTerritoryOverlay = false;
+    const tbtn = document.getElementById('btn-territory');
+    if (tbtn) { tbtn.className = 'btn-secondary'; tbtn.textContent = '🗺 领土'; }
+  }
+  const btn = document.getElementById('btn-supply');
+  if (showSupplyOverlay) {
+    calculateSupply(); // refresh supply data
+    btn.className = 'btn-gold';
+    btn.textContent = '🔍 补给 ON';
+    logEvent('🔍 补给覆盖图: 开启 (绿色=充足 黄色=薄弱 红色=断补)');
+  } else {
+    btn.className = 'btn-secondary';
+    btn.textContent = '🔍 补给';
+  }
+  updateAll();
+}
+
+function toggleTerritoryOverlay() {
+  showTerritoryOverlay = !showTerritoryOverlay;
+  // Mutually exclusive: turn off supply when territory is toggled on
+  if (showTerritoryOverlay && showSupplyOverlay) {
+    showSupplyOverlay = false;
+    const sbtn = document.getElementById('btn-supply');
+    if (sbtn) { sbtn.className = 'btn-secondary'; sbtn.textContent = '🔍 补给'; }
+  }
+  const btn = document.getElementById('btn-territory');
+  if (showTerritoryOverlay) {
+    btn.className = 'btn-gold';
+    btn.textContent = '🗺 领土 ON';
+    logEvent('🗺 领土归属图: 开启 (蓝=英军 红=德军 灰=中立)');
+  } else {
+    btn.className = 'btn-secondary';
+    btn.textContent = '🗺 领土';
+  }
+  updateAll();
 }
 
 function updateCardUI() {
@@ -2556,6 +2827,15 @@ function updateToolbar() {
   const totalCP = capturePoints.length;
   document.getElementById('supply-info').textContent = `总补给: ${sup}`;
   document.getElementById('vp-info').textContent = `占领点: ${cp}/${totalCP}`;
+  const wi = getWeatherInfo();
+  const weatherEl = document.getElementById('weather-info');
+  weatherEl.textContent = `${wi.icon} ${wi.name} · ${wi.desc}`;
+  // Set CSS class for weather color
+  weatherEl.className = 'weather-badge';
+  if (currentWeather === WEATHER.CLEAR) weatherEl.className += ' weather-clear';
+  else if (currentWeather === WEATHER.LIGHT_RAIN) weatherEl.className += ' weather-rain';
+  else if (currentWeather === WEATHER.HEAVY_STORM) weatherEl.className += ' weather-storm';
+  else if (currentWeather === WEATHER.DENSE_FOG) weatherEl.className += ' weather-fog';
 }
 
 function updateButtons() {
@@ -2613,6 +2893,15 @@ function logEvent(msg, level) {
 function startTurn() {
   currentPhase = PHASE.DEPLOY_UK;
   currentPlayer = PLAYER.UK;
+
+  // Weather: roll on odd turns (persists for 2 turns)
+  if (currentTurn % 2 === 1) {
+    rollWeather();
+    const wi = getWeatherInfo();
+    weatherHistory.push({turn: currentTurn, weather: currentWeather});
+    if (weatherHistory.length > 20) weatherHistory.shift(); // keep last 20
+    logEvent(`🌤 天气: ${wi.name} — ${wi.desc}`);
+  }
 
   // Reset all units for new turn
   for (let id in units) {
@@ -2801,7 +3090,8 @@ function showTurnStats() {
       var a = attacks[i2];
       var killTag = a.defKilled ? ' 💀消灭' : '';
       var cpTag = a.cpTaken ? ' 🏴占点' : '';
-      html += '<div class="item">'+a.atkName+' → '+a.defName+' <span style="color:#f1c40f">'+a.result+'</span> ('+a.atkTotal+' vs '+a.defTotal+')'+(a.isAdvanceFire?' <span style="color:#e74c3c">🔫半攻</span>':'')+killTag+cpTag+'</div>';
+      var flankTag = (a.flankBonus>=2) ? ' 🔗包围' : (a.flankBonus>=1 ? ' 🔗夹击' : '');
+      html += '<div class="item">'+a.atkName+' → '+a.defName+' <span style="color:#f1c40f">'+a.result+'</span> ('+a.atkTotal+' vs '+a.defTotal+')'+(a.isAdvanceFire?' <span style="color:#e74c3c">🔫半攻</span>':'')+flankTag+killTag+cpTag+'</div>';
     }
     html += '</div>';
 
@@ -2835,8 +3125,10 @@ function showTurnStats() {
   var deHtml = buildSection('de');
 
   var card = document.getElementById('stats-card');
+  const wi = getWeatherInfo();
   card.innerHTML =
     '<h2>📊 第 '+st.turn+' 回合战报</h2>'+
+    '<div style="text-align:center;color:#aaa;font-size:13px;margin-bottom:10px">'+wi.icon+' 天气: '+wi.name+' — '+wi.desc+'</div>'+
     '<div class="stats-cols">'+
       '<div class="stats-col uk"><h3>🇬🇧 英军</h3>'+ukHtml+'</div>'+
       '<div class="stats-col de"><h3>🇩🇪 德军</h3>'+deHtml+'</div>'+
@@ -2940,8 +3232,7 @@ function resolveTurn() {
         });
         logEvent(`→ ${unit.name} 冲撞敌军 (${dest.q},${dest.r}) ${actTag2} [转为近战]`);
         if (turnStats) turnStats.moves.push({side: unit.owner===1?'uk':'de', name:unit.name, fromQ:fromH.q, fromR:fromH.r, toQ:dest.q, toR:dest.r, action:'overrun'});
-        if (unit.equip <= 0) { removeUnit(unit.id); logEvent(`  💀${unit.name}急行军覆灭`); if (turnStats) turnStats.eliminations.push({side: unit.owner===1?'uk':'de', name: unit.name, killedBy: '急行军冲撞损耗', q: fromH.q, r: fromH.r}); }
-        if (unit.org <= 0) { removeUnit(unit.id); logEvent(`  💀${unit.name}溃散覆灭`); if (turnStats && unit.equip > 0) turnStats.eliminations.push({side: unit.owner===1?'uk':'de', name: unit.name, killedBy: '冲撞溃散', q: fromH.q, r: fromH.r}); }
+        // Defer removal — overrun combat resolves in Phase 3, which handles destruction naturally
       } else if (!enemyAtDest || enemyAtDest.owner === unit.owner) {
         // Execute move
         if (fromH && fromH.unitId === unit.id) fromH.unitId = null;
@@ -2992,11 +3283,14 @@ function resolveTurn() {
     resolveCombat(cr);
   }
 
-  // Phase 4: Supply and attrition
+  // Phase 4: Consolidate territory BEFORE supply (so new captures count)
+  consolidateTerritory();
+
+  // Phase 5: Supply and attrition
   calculateSupply();
   applyAttrition();
 
-  // Phase 5: Org recovery for idle units + rout recovery
+  // Phase 6: Org recovery for idle units + rout recovery
   for (let id in units) {
     const u = units[id];
     if (u.equip <= 0) continue;
@@ -3008,17 +3302,17 @@ function resolveTurn() {
         logEvent(`  ✅ ${u.name} 恢复士气`);
       }
     } else if (!u.hasMoved && !u.hasFought) {
-      u.org = Math.min(u.maxOrg, u.org + (u.isSupplied ? 15 : 5));
+      // Heavy storm: no passive org recovery
+      if (!getWeatherInfo().noOrgRecovery) {
+        u.org = Math.min(u.maxOrg, u.org + (u.isSupplied ? 15 : 5));
+      }
     }
   }
-
-  // Phase 6: Consolidate territory
-  consolidateTerritory();
 
   // Clear turn-based card effects
   clearTurnCards();
 
-  // Phase 7: Victory check
+  // Phase 8: Victory check
   if (checkVictory()) return;
 
   // Next turn
@@ -3086,7 +3380,7 @@ function resolveCombat(cr) {
       }
     }
   }
-  if (nearbyArty && atkType.id !== 'art') atkPower += 2;
+  if (nearbyArty && atkType.id !== 'art' && !getWeatherInfo().noArtySupport) atkPower += 2;
 
   // Special: 琴图里佩 — +3 attack dice toward Catania
   let atkDiceBonus = 0;
@@ -3099,6 +3393,21 @@ function resolveCombat(cr) {
   if (hasActiveEffect(defUnit.owner, 'defenseDice')) {
     atkDiceBonus -= getActiveEffectVal(defUnit.owner, 'defenseDice');
   }
+  // Weather: attack dice penalty (heavy storm)
+  atkDiceBonus -= getWeatherInfo().atkDiePenalty;
+
+  // Flanking: +1/+2 atk die if friendly units adjacent to defender
+  let flankBonus = 0;
+  const defNeighbors = hexNeighbors(defUnit.q, defUnit.r);
+  for (let n of defNeighbors) {
+    if (n.q === atkUnit.q && n.r === atkUnit.r) continue; // skip attacker
+    const fu = getUnitAt(n.q, n.r);
+    if (fu && fu.owner === atkUnit.owner && !fu.routed && fu.equip > 0) {
+      flankBonus++;
+    }
+  }
+  if (flankBonus >= 2) atkDiceBonus += 2;
+  else if (flankBonus >= 1) atkDiceBonus += 1;
 
   // Advance fire penalty: move + shoot = half attack power
   if (cr.isAdvanceFire) atkPower = Math.floor(atkPower * 0.5);
@@ -3106,6 +3415,8 @@ function resolveCombat(cr) {
   if (unitCardBuffs[atkUnit.id] && unitCardBuffs[atkUnit.id].atkBonus) {
     atkPower += unitCardBuffs[atkUnit.id].atkBonus;
   }
+  // Veteran bonus: +1 attack power
+  if (atkUnit.veteran) atkPower += 1;
 
   // ---- DEFENDER POWER ----
   let defPower = defType.def + Math.max(0, terrainDef) * 2;
@@ -3132,6 +3443,8 @@ function resolveCombat(cr) {
   if (unitCardBuffs[defUnit.id] && unitCardBuffs[defUnit.id].defBonus) {
     defPower += unitCardBuffs[defUnit.id].defBonus;
   }
+  // Veteran bonus: +1 defense
+  if (defUnit.veteran) defPower += 1;
 
   // River crossing: attacking across a river edge gives defender +2 defense
   if (hexDistance(atkUnit.q, atkUnit.r, defUnit.q, defUnit.r) <= 1
@@ -3148,7 +3461,9 @@ function resolveCombat(cr) {
 
   // ---- ARTILLERY DEFENSIVE FIRE ----
   // Friendly artillery within 2 hexes provides +2 def support, expends 5 org
+  // Disabled in heavy storm
   let artySupport = 0, artySupportUnit = null;
+  if (!getWeatherInfo().noArtySupport) {
   const defNeighbors2 = hexNeighbors(defUnit.q, defUnit.r).concat(
     hexNeighbors(defUnit.q, defUnit.r).flatMap(n=>hexNeighbors(n.q, n.r))
   );
@@ -3172,6 +3487,7 @@ function resolveCombat(cr) {
     // Don't log individual support events during multi-combat resolution (too noisy)
     // The combat log line already includes defPower changes
   }
+  } // end weather check for arty support
 
   // ---- 2D6 DICE ROLLS ----
   const atkRoll = roll2d6() + atkDiceBonus;
@@ -3235,6 +3551,8 @@ function resolveCombat(cr) {
 
   // Build bonus tags for log
   let bonusTags = [];
+  if (atkUnit.veteran) bonusTags.push('⭐老兵+1攻');
+  if (defUnit.veteran) bonusTags.push('⭐老兵+1防');
   if (atkDiceBonus) bonusTags.push(`攻方+${atkDiceBonus}骰`);
   if (defDefBonus) bonusTags.push(`守方+${defDefBonus}防`);
   if (defOrgSavePct > 0) bonusTags.push(`守方护盾${Math.round(defOrgSavePct*100)}%`);
@@ -3243,6 +3561,8 @@ function resolveCombat(cr) {
   if (atkUnit.routed) bonusTags.push('攻方溃退');
   if (defUnit.routed) bonusTags.push('守方溃退');
   if (atkType.id === 'art' && hexDistance(atkUnit.q, atkUnit.r, defUnit.q, defUnit.r) >= 2) bonusTags.push('远程射击无反击');
+  if (flankBonus >= 2) bonusTags.push(`包围夹击+2骰`);
+  else if (flankBonus >= 1) bonusTags.push(`夹击+1骰`);
   const bonusStr = bonusTags.length > 0 ? ` [${bonusTags.join(',')}]` : '';
 
   logEvent(`⚔ ${atkType.icon}${atkUnit.name}(${atkTotal}) vs ${defType.icon}${defUnit.name}(${defTotal}) [${h?h.terrain.name:''}]${bonusStr}`);
@@ -3277,6 +3597,12 @@ function resolveCombat(cr) {
       logEvent(`🏴 ${cp.name} 被 ${atkUnit.owner===PLAYER.UK?'英军':'德军'} 占领!`);
       triggerCaptureEffect(cp, atkUnit.owner, prevOwner);
     }
+    // Promotion: attacker becomes veteran after destroying an enemy unit
+    if (!atkUnit.veteran) {
+      atkUnit.veteran = true;
+      resultText += ' ⭐晋升老兵';
+      logEvent(`⭐ ${atkUnit.name} 晋升为老兵! +1攻 +1防 +1移`);
+    }
   }
   // Attacker destroyed (independent check — both sides can be destroyed in same combat)
   if (atkUnit.equip <= 0 || atkUnit.org <= 0) {
@@ -3307,13 +3633,13 @@ function resolveCombat(cr) {
 
   // Collect turn stats
   if (turnStats) {
-    var atkSide = atkUnit.owner===1?'uk':'de';
-    var defSide = defUnit.owner===1?'uk':'de';
-    var defKilled = (defUnit.equip <= 0 || defUnit.org <= 0);
-    var atkKilled = (atkUnit.equip <= 0 || atkUnit.org <= 0);
-    var cpName = null;
+    let atkSide = atkUnit.owner===1?'uk':'de';
+    let defSide = defUnit.owner===1?'uk':'de';
+    let defKilled = (defUnit.equip <= 0 || defUnit.org <= 0);
+    let atkKilled = (atkUnit.equip <= 0 || atkUnit.org <= 0);
+    let cpName = null, defcp = null;
     if (defKilled) {
-      var defcp = capturePoints.find(function(c){return c.q===defUnit.q && c.r===defUnit.r;});
+      defcp = capturePoints.find(function(c){return c.q===defUnit.q && c.r===defUnit.r;});
       if (defcp) cpName = defcp.name;
     }
     turnStats.attacks.push({
@@ -3324,7 +3650,8 @@ function resolveCombat(cr) {
       defLossEquip: equipDmgD, defLossOrg: orgDmgD,
       defKilled: defKilled, defSide: defSide,
       cpTaken: cpName, q: defUnit.q, r: defUnit.r,
-      isAdvanceFire: cr.isAdvanceFire || false
+      isAdvanceFire: cr.isAdvanceFire || false,
+      flankBonus: flankBonus || 0
     });
     if (defKilled) {
       turnStats.eliminations.push({side: defSide, name: defUnit.name, killedBy: atkUnit.name, q: defUnit.q, r: defUnit.r});
@@ -3424,16 +3751,19 @@ function triggerCaptureEffect(cp, newOwner, prevOwner) {
 //  SUPPLY SYSTEM
 // ==============================
 function calculateSupply() {
-  // Reset all supply levels
+  // Reset all supply levels (per-player)
   for (let r=0; r<ROWS; r++)
-    for (let q=0; q<COLS; q++)
-      hexGrid[r][q].supplyLevel = 0;
+    for (let q=0; q<COLS; q++) {
+      hexGrid[r][q].supplyUK = 0;
+      hexGrid[r][q].supplyDE = 0;
+    }
 
   // BFS from each controlled capture point
   for (let cp of capturePoints) {
     const h = getHex(cp.q, cp.r);
     if (!h || h.owner === PLAYER.NONE) continue;
     const owner = h.owner;
+    const supplyField = owner === PLAYER.UK ? 'supplyUK' : 'supplyDE';
     const visited = new Set();
     const queue = [{q:cp.q, r:cp.r, dist:0}];
     visited.add(hexKey(cp.q, cp.r));
@@ -3453,13 +3783,18 @@ function calculateSupply() {
       const ch = getHex(q, r);
       if (ch) {
         const level = Math.max(0.25, 1.0 - dist/maxRange);
-        ch.supplyLevel = Math.max(ch.supplyLevel || 0, level);
+        ch[supplyField] = Math.max(ch[supplyField] || 0, level);
       }
       if (dist >= maxRange) continue;
       for (let n of hexNeighbors(q, r)) {
         const nh = getHex(n.q, n.r);
         if (!nh || nh.terrain.imp) continue;
-        if (nh.owner !== owner) continue;
+        // Supply flows through: friendly territory, neutral ground, or hexes with friendly units.
+        // Only blocked by enemy territory that has no friendly unit on it.
+        if (nh.owner !== owner && nh.owner !== PLAYER.NONE) {
+          const nhu = getUnitAt(n.q, n.r);
+          if (!nhu || nhu.owner !== owner) continue;
+        }
         const nk = hexKey(n.q, n.r);
         if (visited.has(nk)) continue;
         const stepCost = nh.road ? 0.5 : nh.terrain.mc;
@@ -3475,7 +3810,7 @@ function calculateSupply() {
         const newDist = dist + stepCost;
         if (newDist <= maxRange) {
           const level = Math.max(0.25, 1.0 - newDist/maxRange);
-          nh.supplyLevel = Math.max(nh.supplyLevel || 0, level);
+          nh[supplyField] = Math.max(nh[supplyField] || 0, level);
         }
         if (!zocBlocked && newDist < maxRange) {
           queue.push({q:n.q, r:n.r, dist:newDist});
@@ -3484,11 +3819,12 @@ function calculateSupply() {
     }
   }
 
-  // Update unit supply status
+  // Update unit supply status (use unit owner's supply field)
   for (let id in units) {
     const u = units[id];
     const h = getHex(u.q, u.r);
-    u.isSupplied = h ? h.supplyLevel >= 0.25 : false;
+    const supField = u.owner === PLAYER.UK ? 'supplyUK' : 'supplyDE';
+    u.isSupplied = h ? (h[supField] || 0) >= 0.25 : false;
     // Card: air supply immunity — unit always supplied
     if (!u.isSupplied && unitCardBuffs[id] && unitCardBuffs[id].supplyImmune && unitCardBuffs[id].supplyImmune > 0) {
       u.isSupplied = true;
@@ -3668,6 +4004,7 @@ function updateAll() {
   updateUnitList();
   updateCardUI();
   updateCPSummary();
+  updateWeatherLog();
   updateSidebar();
   updateButtons();
 }
@@ -3680,6 +4017,8 @@ function saveGame() {
     version: SAVE_VERSION,
     gameMode: gameMode,
     turn: currentTurn, phase: currentPhase, player: currentPlayer,
+    weather: currentWeather,
+    weatherHistory: weatherHistory,
     reinfPoints: reinfPoints,
     unitOrders: unitOrders,
     capturePoints: capturePoints.map(cp=>({q:cp.q, r:cp.r, owner: getHex(cp.q,cp.r)?.owner || cp.startOwner})),
@@ -3696,7 +4035,7 @@ function saveGame() {
       typeId:u.typeId, owner:u.owner, q:u.q, r:u.r,
       name:u.name, equip:u.equip, org:u.org, maxOrg:u.maxOrg, order:u.order,
       hasMoved:u.hasMoved, hasFought:u.hasFought, routed:u.routed,
-      nation: u.nation || null
+      nation: u.nation || null, veteran: u.veteran || false
     };
   }
   for (let r=0; r<ROWS; r++)
@@ -3727,6 +4066,7 @@ function loadGame() {
       unit.hasFought = su.hasFought || false;
       unit.routed = su.routed || false;
       unit.nation = su.nation || null;
+      unit.veteran = su.veteran || false;
       unitIdCounter = Math.max(unitIdCounter, parseInt(id.slice(1))+1);
       if (unit.order) unitOrders[id] = unit.order;
     }
@@ -3745,6 +4085,8 @@ function loadGame() {
     currentTurn = state.turn;
     currentPhase = state.phase;
     currentPlayer = state.player;
+    currentWeather = state.weather ?? WEATHER.CLEAR;
+    weatherHistory = state.weatherHistory || [];
     reinfPoints = state.reinfPoints || {1:0,2:0};
     unitOrders = state.unitOrders || {};
     playerCards = state.playerCards || {1:[], 2:[]};
@@ -3785,6 +4127,13 @@ document.addEventListener('keydown', function(e) {
     confirmOrder();
   } else if (e.key === 'F4') {
     if (confirm('确定要重新开始吗?')) location.reload();
+  } else if (e.key === 's' || e.key === 'S') {
+    // Don't trigger when typing in input fields
+    if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+    toggleSupplyOverlay();
+  } else if (e.key === 't' || e.key === 'T') {
+    if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+    toggleTerritoryOverlay();
   }
 });
 
@@ -3801,6 +4150,8 @@ function initGame() {
   unitCardBuffs = {};
   exploredHexes = {1: new Set(), 2: new Set()};
   visibleHexes = {1: new Set(), 2: new Set()};
+  currentWeather = WEATHER.CLEAR;
+  weatherHistory = [];
   calculateSupply();
 
   // Pre-explore all land hexes so terrain is always visible
@@ -3842,6 +4193,8 @@ function startGame(mode) {
   document.getElementById('modal').style.display = 'none';
   resizeCanvas();
 
+  document.getElementById('btn-supply').onclick = toggleSupplyOverlay;
+  document.getElementById('btn-territory').onclick = toggleTerritoryOverlay;
   document.getElementById('btn-save').onclick = saveGame;
   document.getElementById('btn-load').onclick = loadGame;
   window.selectUnit = selectUnit;
@@ -3912,6 +4265,7 @@ function startGame(mode) {
     apTitle.textContent = '≡ ' + unit.name;
     var html = '<div class="ap-unit">';
     html += ut.icon + ' ' + ut.name;
+    if (unit.veteran) html += ' <span style="color:#f1c40f;font-size:11px">⭐老兵</span>';
     if (unit.nation === 'ita') html += ' <span style="color:#90c040;font-size:9px">🇮🇹意军</span>';
     if (unit.routed) html += ' <span style="color:#e74c3c;font-size:9px">⚠溃退</span>';
     html += ' | 装' + unit.equip + '/' + unit.maxEquip + ' 组' + unit.org + '/' + unit.maxOrg;
