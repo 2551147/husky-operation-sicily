@@ -87,6 +87,18 @@ body{background:#1a1a2e;font-family:"Microsoft YaHei",sans-serif;overflow:hidden
 #action-panel .ap-confirm button{flex:1;padding:5px;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;color:#fff}
 #action-panel .ap-confirm .btn-ok{background:#27ae60}
 #action-panel .ap-confirm .btn-cancel{background:#c0392b}
+
+#log-modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:400;display:none;flex-direction:column}
+#log-modal .log-header{background:#16213e;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #c0392b}
+#log-modal .log-header h2{color:#e74c3c;font-size:16px;margin:0}
+#log-modal .log-body{flex:1;overflow-y:auto;padding:12px 20px}
+#log-modal .log-turn{margin-bottom:14px;border:1px solid #333;border-radius:6px;overflow:hidden}
+#log-modal .log-turn-hdr{background:#1a1a3a;padding:6px 12px;font-size:12px;color:#f1c40f;font-weight:bold;display:flex;justify-content:space-between;cursor:pointer}
+#log-modal .log-turn-hdr:hover{background:#222250}
+#log-modal .log-turn-body{padding:4px 0}
+#log-modal .log-entry{font-size:10px;padding:2px 12px;border-bottom:1px dotted #1a1a2a;line-height:1.5}
+#log-modal .log-entry:last-child{border-bottom:none}
+#log-modal .btn-close-log{background:#c0392b;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:13px}
 </style>
 </head>
 <body>
@@ -103,7 +115,7 @@ body{background:#1a1a2e;font-family:"Microsoft YaHei",sans-serif;overflow:hidden
 
 <div id="sidebar">
   <h3 id="sidebar-title">📋 己方单位</h3>
-  <div id="unit-list"></div>
+  <div id="unit-list" style="max-height:320px;overflow-y:auto"></div>
   <div id="card-area" style="border-top:1px solid #333;padding-top:4px">
     <div style="font-size:11px;color:#e74c3c;margin-bottom:2px" id="card-title">🃏 战术卡</div>
     <div id="card-list" style="font-size:10px;color:#888;max-height:120px;overflow-y:auto"></div>
@@ -133,8 +145,8 @@ body{background:#1a1a2e;font-family:"Microsoft YaHei",sans-serif;overflow:hidden
   <button class="btn-secondary" id="btn-territory" title="切换领土归属显示 (T键)">🗺 领土</button>
   <button class="btn-secondary" id="btn-save">💾 存档</button>
   <button class="btn-secondary" id="btn-load">📂 读档</button>
-  <span id="log" style="flex:1">就绪。英军请在己方占领点部署单位。</span>
-  <span id="shortcuts" style="font-size:10px;color:#555;white-space:nowrap">ESC=取消 | Enter=确认 | F4=重置</span>
+  <button class="btn-secondary" id="btn-log" title="查看回合日志 (L键)">📜 日志</button>
+  <span id="shortcuts" style="font-size:10px;color:#555;white-space:nowrap;margin-left:auto">ESC=取消 | Enter=确认 | L=日志 | F4=重置</span>
 </div>
 </div>
 
@@ -147,6 +159,14 @@ body{background:#1a1a2e;font-family:"Microsoft YaHei",sans-serif;overflow:hidden
 
 <div id="stats-screen">
   <div class="stats-card" id="stats-card"></div>
+</div>
+
+<div id="log-modal">
+  <div class="log-header">
+    <h2>📜 回合日志</h2>
+    <button class="btn-close-log" onclick="closeLogModal()">✕ 关闭</button>
+  </div>
+  <div class="log-body" id="log-body"></div>
 </div>
 
 <script>
@@ -586,7 +606,7 @@ function runAIDeploy() {
     return minDistToEnemyCP(a.q, a.r, enemyPlayer) - minDistToEnemyCP(b.q, b.r, enemyPlayer);
   });
 
-  if (rp >= 4 && Math.random() < 0.4) { buyTacticalCard(player); }
+  if (rp >= CARD_BUY_COST && Math.random() < 0.4) { buyTacticalCard(player); }
 
   var rp2 = reinfPoints[player] || 0;
   // Germany: 35% chance to deploy cheap Italian infantry instead
@@ -832,6 +852,7 @@ let selectedCardUid = null; // card being targeted (requires clicking unit/hex)
 let unitOrders = {};
 let reinfPoints = {1:0, 2:0}; // supply points for buying units
 let eventLog = [];
+let turnLogs = []; // {turn, weather, entries:[{msg,lvl}]} — archived per turn
 let turnStats = null; // collected during resolveTurn for end-of-turn stats panel
 let currentWeather = WEATHER.CLEAR; // rolled at start of odd turns, persists for 2 turns
 let weatherHistory = []; // {turn, weather} records
@@ -1095,7 +1116,7 @@ function drawTacticalCard(player) {
 }
 
 // Cost to buy a card with supply points
-const CARD_BUY_COST = 2;
+const CARD_BUY_COST = 4;
 
 function buyTacticalCard(player) {
   if ((reinfPoints[player]||0) < CARD_BUY_COST) {
@@ -1368,7 +1389,8 @@ function createUnit(typeId, owner, q, r, name, opts) {
     routed: false,         // rout status
     order: null,
     nation: (opts && opts.nation) || null,
-    veteran: false,            // promoted after killing an enemy
+    veteran: false,            // promoted after 2 kills
+    kills: 0,                 // kill count for veteran promotion
   };
   units[id] = unit;
   const h = getHex(q, r);
@@ -1799,13 +1821,15 @@ function drawUnit(ctx, unit) {
   ctx.textBaseline = 'middle';
   const botCenterY = (botY + cy + ch)/2;
   if (unit.veteran) {
-    // Veteran star on the left, size on the right
+    // Veteran gold star (earned after 2 kills)
     ctx.fillStyle = '#f1c40f';
-    ctx.font = `bold ${Math.max(7, 10*z)}px sans-serif`;
-    ctx.fillText('★', cx + cw/2 - 8*z, botCenterY);
-    ctx.fillStyle = '#999';
-    ctx.font = `${Math.max(5, 7*z)}px sans-serif`;
-    ctx.fillText('II', cx + cw/2 + 6*z, botCenterY);
+    ctx.font = `bold ${Math.max(8, 11*z)}px sans-serif`;
+    ctx.fillText('★', cx + cw/2, botCenterY);
+  } else if (unit.kills > 0) {
+    // Kill progress toward veteran promotion
+    ctx.fillStyle = '#f39c12';
+    ctx.font = `bold ${Math.max(6, 9*z)}px sans-serif`;
+    ctx.fillText('⚔'+unit.kills, cx + cw/2, botCenterY);
   } else {
     ctx.fillText('II', cx + cw/2, botCenterY);  // II = battalion
   }
@@ -2244,6 +2268,7 @@ canvas.addEventListener('mousemove', function(e) {
         const ut = getUnitType(u);
         tip += `\n${u.owner===PLAYER.UK?'🇬🇧':'🇩🇪'} ${u.name}`;
         if (u.veteran) tip += ' ⭐老兵';
+        else if (u.kills > 0) tip += ` ⚔${u.kills}/2`;
         tip += `\n${ut.icon} ${ut.name} | 装备:${u.equip}/${u.maxEquip} 组织:${u.org}/${u.maxOrg}`;
         if (u.routed) tip += ' [溃退]';
         if (u.order) tip += `\n📋 命令: ${u.order.type==='move'?'移动':'攻击'}→(${u.order.toQ},${u.order.toR})`;
@@ -2550,7 +2575,8 @@ function updateSidebar() {
   const ut = getUnitType(unit);
 
   let html = `<b>${unit.name}</b>`;
-  if (unit.veteran) html += ` <span style="color:#f1c40f;font-size:11px">⭐</span>`;
+  if (unit.veteran) html += ` <span style="color:#f1c40f;font-size:11px">⭐老兵</span>`;
+  else if (unit.kills > 0) html += ` <span style="color:#f39c12;font-size:10px">⚔${unit.kills}/2</span>`;
   if (unit.nation === 'ita') html += ` <span style="color:#90c040;font-size:10px">🇮🇹意军</span>`;
   if (unit.routed) html += ` <span style="color:#e74c3c;font-size:10px">⚠溃退</span>`;
   html += `<br>`;
@@ -2605,12 +2631,12 @@ function updateUnitList() {
     const ordered = u.order ? ' ✓' : '';
     const clickHandler = interactive ? `onclick="selectUnit('${id}');updateUnitList()"` : '';
     html += `<div class="unit-card${sel}" ${clickHandler}>`;
-    const vetTag = u.veteran ? ' ⭐' : '';
+    const vetTag = u.veteran ? ' ⭐' : (u.kills > 0 ? ` ⚔${u.kills}/2` : '');
     const nationTag = u.nation === 'ita' ? ' 🇮🇹' : '';
     html += `<div class="name">${ut.icon} ${u.name}${vetTag}${nationTag}${ordered}</div>`;
     html += `<div class="stats">装备:${u.equip}/${u.maxEquip} 组织:${u.org}/${u.maxOrg} | ${ut.name}${u.nation==='ita'?' [意军]':''}</div>`;
-    html += `<div class="bar-wrap"><div class="bar-fill bar-equip" style="width:${u.equip/u.maxEquip*100}%"></div></div>`;
-    html += `<div class="bar-wrap"><div class="bar-fill bar-org" style="width:${u.org/u.maxOrg*100}%"></div></div>`;
+    html += `<div class="bar-wrap"><div class="bar-fill bar-equip" style="width:${Math.min(100, u.equip/Math.max(1,u.maxEquip)*100)}%"></div></div>`;
+    html += `<div class="bar-wrap"><div class="bar-fill bar-org" style="width:${Math.min(100, u.org/Math.max(1,u.maxOrg)*100)}%"></div></div>`;
     html += `</div>`;
   }
   list.innerHTML = html || '<div style="color:#666;font-size:12px">无单位</div>';
@@ -2634,13 +2660,18 @@ function updateUnitList() {
   } else {
     const pp = getPhasePlayer();
     const rp = reinfPoints[pp] || 0;
-  if ((currentPhase === PHASE.DEPLOY_UK || currentPhase === PHASE.DEPLOY_DE) && rp > 0) {
-    reinfInfo.innerHTML = `🪖 可部署兵力点: <b>${rp}</b><br>
-      <span style="font-size:9px">步兵:2 | 装甲:5 | 炮兵:4 | 工兵:3 | 侦察:3</span><br>
-      <button onclick="buyTacticalCard(${pp})" style="margin-top:3px;padding:3px 8px;background:#8e44ad;color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:10px"
-        ${rp >= CARD_BUY_COST ? '' : 'disabled'}>🃏 消耗${CARD_BUY_COST}补给抽卡</button>`;
-    } else if (currentPhase === PHASE.DEPLOY_UK || currentPhase === PHASE.DEPLOY_DE) {
-      reinfInfo.innerHTML = '🪖 无可用兵力点';
+  var isMyTurn = (currentPhase === PHASE.DEPLOY_UK && pp === PLAYER.UK) ||
+                   (currentPhase === PHASE.DEPLOY_DE && pp === PLAYER.GERMANY) ||
+                   (currentPhase === PHASE.ORDERS_UK && pp === PLAYER.UK) ||
+                   (currentPhase === PHASE.ORDERS_DE && pp === PLAYER.GERMANY);
+  var isDeploy = (currentPhase === PHASE.DEPLOY_UK || currentPhase === PHASE.DEPLOY_DE);
+  if (isMyTurn && rp > 0) {
+    reinfInfo.innerHTML = (isDeploy ? `🪖 可部署兵力点: <b>${rp}</b><br>
+      <span style="font-size:9px">步兵:2 | 装甲:5 | 炮兵:4 | 工兵:3 | 侦察:3</span><br>` : `💰 可用兵力点: <b>${rp}</b><br>`) +
+      `<button onclick="buyTacticalCard(${pp})" style="margin-top:3px;padding:3px 8px;background:#8e44ad;color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:10px"
+        ${rp >= CARD_BUY_COST ? '' : 'disabled'}>🃏 消耗${CARD_BUY_COST}兵力点抽卡</button>`;
+    } else if (isMyTurn) {
+      reinfInfo.innerHTML = isDeploy ? '🪖 无可用兵力点' : '💰 无可用兵力点';
     } else {
       reinfInfo.innerHTML = '';
     }
@@ -2823,9 +2854,10 @@ function updateToolbar() {
   }
 
   const sup = getSupplyValue(currentPlayer);
+  const rp = reinfPoints[currentPlayer] || 0;
   const cp = getControlledCPs(currentPlayer);
   const totalCP = capturePoints.length;
-  document.getElementById('supply-info').textContent = `总补给: ${sup}`;
+  document.getElementById('supply-info').textContent = `补给: ${sup} | 可用兵力: ${rp}`;
   document.getElementById('vp-info').textContent = `占领点: ${cp}/${totalCP}`;
   const wi = getWeatherInfo();
   const weatherEl = document.getElementById('weather-info');
@@ -2881,27 +2913,108 @@ function logEvent(msg, level) {
     else if (msg.startsWith('🔄') || msg.startsWith('🪖') || msg.startsWith('📋')) lvl = 'phase';
   }
   eventLog.unshift({msg, lvl});
-  if (eventLog.length > 200) eventLog.pop();
-  const colors = {info:'#888', combat:'#e74c3c', warning:'#f39c12', victory:'#2ecc71', phase:'#85c1e9'};
-  const display = eventLog.slice(0, 4).map(e=>`<span style="color:${colors[e.lvl]||'#888'}">${e.msg}</span>`).join(' <span style="color:#555">|</span> ');
-  document.getElementById('log').innerHTML = display || '就绪';
+  if (eventLog.length > 500) eventLog.pop();
+}
+
+function archiveTurnLog() {
+  if (eventLog.length === 0) return;
+  turnLogs.push({
+    turn: currentTurn,
+    weather: getWeatherInfo(),
+    entries: [...eventLog].reverse() // chronological order (oldest first)
+  });
+  if (turnLogs.length > 30) turnLogs.shift(); // keep last 30 turns
+  eventLog = [];
+}
+
+function showLogModal() {
+  // Block during AI phase (prevents peeking at AI actions)
+  if (isAIPhase() && currentPhase !== PHASE.RESOLVE) return;
+  var modal = document.getElementById('log-modal');
+  var body = document.getElementById('log-body');
+  var colors = {info:'#aaa', combat:'#e74c3c', warning:'#f39c12', victory:'#2ecc71', phase:'#85c1e9'};
+
+  // Filter: only show combat, card, weather, and combat-result entries.
+  // Also apply FOW: in single-player mode, hide AI-only entries.
+  function keepEntry(e) {
+    var m = e.msg;
+    // Always show these regardless of side
+    if (m.startsWith('🌤')) return true;
+    // Combat and results always shown (they involve both sides or are public)
+    if (e.lvl === 'combat' || e.lvl === 'warning' || e.lvl === 'victory') return true;
+    if (m.startsWith('⚔') || m.startsWith('💀') || m.startsWith('🏴') || m.startsWith('🏃')) return true;
+    if (m.startsWith('⭐') || m.startsWith('💔') || m.startsWith('⚠') || m.startsWith('❌')) return true;
+    // Card buys: only show own side in single-player mode
+    if (m.startsWith('🛒') || m.startsWith('🃏')) {
+      if (gameMode === GAME_MODE.HOTSEAT) return true;
+      if (gameMode === GAME_MODE.UK_VS_AI && m.indexOf('英军')>=0) return true;
+      if (gameMode === GAME_MODE.AI_VS_DE && m.indexOf('德军')>=0) return true;
+      return false;
+    }
+    // Hide movement, deploy, and other internal entries
+    return false;
+  }
+
+  function renderEntries(entries) {
+    var h = '';
+    var shown = 0;
+    for (var i=0;i<entries.length;i++) {
+      if (!keepEntry(entries[i])) continue;
+      h += '<div class="log-entry" style="color:'+(colors[entries[i].lvl]||'#aaa')+'">'+entries[i].msg+'</div>';
+      shown++;
+    }
+    return {html:h, shown:shown};
+  }
+
+  var html = '';
+  if (turnLogs.length === 0 && eventLog.length === 0) {
+    html = '<div style="color:#555;text-align:center;padding:40px">暂无日志记录</div>';
+  }
+  // Current turn (not yet archived)
+  if (eventLog.length > 0) {
+    var cur = [...eventLog].reverse();
+    var curR = renderEntries(cur);
+    html += '<div class="log-turn">';
+    html += '<div class="log-turn-hdr" onclick="var tb=this.nextElementSibling;tb.style.display=tb.style.display===`none`?`block`:`none`">';
+    html += '📌 当前回合 (进行中) <span style="font-size:10px;color:#888">'+curR.shown+'条</span></div>';
+    html += '<div class="log-turn-body">'+curR.html+'</div></div>';
+  }
+  // Archived turns (newest first)
+  for (var t=turnLogs.length-1; t>=0; t--) {
+    var tl = turnLogs[t];
+    var r = renderEntries(tl.entries);
+    if (r.shown === 0) continue;
+    html += '<div class="log-turn">';
+    html += '<div class="log-turn-hdr" onclick="var tb=this.nextElementSibling;tb.style.display=tb.style.display===`none`?`block`:`none`">';
+    html += '第'+tl.turn+'回合 · '+tl.weather.icon+' '+tl.weather.name+' <span style="font-size:10px;color:#888">'+r.shown+'条</span></div>';
+    html += '<div class="log-turn-body">'+r.html+'</div></div>';
+  }
+  body.innerHTML = html || '<div style="color:#555;text-align:center;padding:40px">暂无战斗/天气/抽卡记录</div>';
+  modal.style.display = 'flex';
+}
+
+function closeLogModal() {
+  document.getElementById('log-modal').style.display = 'none';
 }
 
 // ==============================
 //  TURN SYSTEM (WEGO)
 // ==============================
 function startTurn() {
+  // Archive previous turn's event log
+  if (currentTurn > 0) archiveTurnLog();
+
   currentPhase = PHASE.DEPLOY_UK;
   currentPlayer = PLAYER.UK;
 
-  // Weather: roll on odd turns (persists for 2 turns)
+  // Weather: roll on odd turns (persists for 2 turns), record every turn
   if (currentTurn % 2 === 1) {
     rollWeather();
-    const wi = getWeatherInfo();
-    weatherHistory.push({turn: currentTurn, weather: currentWeather});
-    if (weatherHistory.length > 20) weatherHistory.shift(); // keep last 20
-    logEvent(`🌤 天气: ${wi.name} — ${wi.desc}`);
   }
+  const wi = getWeatherInfo();
+  weatherHistory.push({turn: currentTurn, weather: currentWeather});
+  if (weatherHistory.length > 20) weatherHistory.shift();
+  logEvent(`🌤 第${currentTurn}回合天气: ${wi.name} — ${wi.desc}`);
 
   // Reset all units for new turn
   for (let id in units) {
@@ -3073,16 +3186,6 @@ function showTurnStats() {
     var cps = st.cpChanges.filter(function(c){return c.newOwner===(side==='uk'?1:2) && canSee(side, c.q||0, c.r||0);});
 
     var html = '';
-    // Moves
-    html += '<div class="stat-block"><div class="label">🚶 移动</div>';
-    if (moves.length===0) html += '<div class="stat-empty">无移动</div>';
-    else for (var i=0;i<moves.length;i++) {
-      var m = moves[i];
-      var actName = {move:'移动',forcedMarch:'⚡急行军',rapidWithdraw:'🏃撤退',advance_fire:'🔫移动射击',overrun:'💥突袭'}[m.action]||m.action;
-      html += '<div class="item">'+m.name+' '+actName+' →('+m.toQ+','+m.toR+')</div>';
-    }
-    html += '</div>';
-
     // Attacks
     html += '<div class="stat-block"><div class="label">⚔ 攻击</div>';
     if (attacks.length===0) html += '<div class="stat-empty">无攻击</div>';
@@ -3091,15 +3194,17 @@ function showTurnStats() {
       var killTag = a.defKilled ? ' 💀消灭' : '';
       var cpTag = a.cpTaken ? ' 🏴占点' : '';
       var flankTag = (a.flankBonus>=2) ? ' 🔗包围' : (a.flankBonus>=1 ? ' 🔗夹击' : '');
-      html += '<div class="item">'+a.atkName+' → '+a.defName+' <span style="color:#f1c40f">'+a.result+'</span> ('+a.atkTotal+' vs '+a.defTotal+')'+(a.isAdvanceFire?' <span style="color:#e74c3c">🔫半攻</span>':'')+flankTag+killTag+cpTag+'</div>';
+      var atkTag2 = a.atkVeteran ? '⭐' : (a.atkKills>0 ? '⚔'+a.atkKills : '');
+      var defTag2 = a.defVeteran ? '⭐' : (a.defKills>0 ? '⚔'+a.defKills : '');
+      html += '<div class="item">'+(atkTag2?atkTag2+' ':'')+a.atkName+' → '+(defTag2?defTag2+' ':'')+a.defName+' <span style="color:#f1c40f">'+a.result+'</span> ('+a.atkTotal+' vs '+a.defTotal+')'+(a.isAdvanceFire?' <span style="color:#e74c3c">🔫半攻</span>':'')+flankTag+killTag+cpTag+'</div>';
     }
     html += '</div>';
 
     // Losses
     html += '<div class="stat-block"><div class="label" style="color:#e74c3c">💀 损失</div>';
     var losses = [];
-    for (var i3=0;i3<elims.length;i3++) { losses.push(elims[i3].name+' (被'+elims[i3].killedBy+'消灭)'); }
-    for (var i4=0;i4<routs.length;i4++) { losses.push(routs[i4].name+' (溃退)'); }
+    for (var i3=0;i3<elims.length;i3++) { var eTag=elims[i3].veteran?'⭐':(elims[i3].kills>0?'⚔'+elims[i3].kills:''); losses.push((eTag?eTag+' ':'')+elims[i3].name+' (被'+elims[i3].killedBy+'消灭)'); }
+    for (var i4=0;i4<routs.length;i4++) { var rTag=routs[i4].veteran?'⭐':(routs[i4].kills>0?'⚔'+routs[i4].kills:''); losses.push((rTag?rTag+' ':'')+routs[i4].name+' (溃退)'); }
     if (losses.length===0) html += '<div class="stat-empty">无损失</div>';
     else for (var i5=0;i5<losses.length;i5++) {
       html += '<div class="item" style="color:#e74c3c">'+losses[i5]+'</div>';
@@ -3115,7 +3220,7 @@ function showTurnStats() {
       html += '</div>';
     }
 
-    if (moves.length===0 && attacks.length===0 && elims.length===0 && routs.length===0 && cps.length===0) {
+    if (attacks.length===0 && elims.length===0 && routs.length===0 && cps.length===0) {
       return '<div class="stat-empty" style="text-align:center;padding:12px">本回合无行动</div>';
     }
     return html;
@@ -3189,7 +3294,7 @@ function resolveTurn() {
       if (toH) { toH.unitId = unit.id; toH.owner = unit.owner; }
       unit.hasMoved = true;
       logEvent(`→ ${unit.name} 移动至 (${dest.q},${dest.r}) [移动射击]`);
-      if (turnStats) turnStats.moves.push({side: unit.owner===1?'uk':'de', name:unit.name, fromQ:fromH.q, fromR:fromH.r, toQ:dest.q, toR:dest.r, action:'advance_fire'});
+      if (turnStats) turnStats.moves.push({side: unit.owner===1?'uk':'de', name:unit.name, veteran:unit.veteran||false, kills:unit.kills||0, fromQ:fromH.q, fromR:fromH.r, toQ:dest.q, toR:dest.r, action:'advance_fire'});
       // Queue the attack
       const defUnit = getUnit(order.attackTargetId);
       if (defUnit && defUnit.equip > 0) {
@@ -3231,7 +3336,7 @@ function resolveTurn() {
           q: dest.q, r: dest.r, isOverrun: true
         });
         logEvent(`→ ${unit.name} 冲撞敌军 (${dest.q},${dest.r}) ${actTag2} [转为近战]`);
-        if (turnStats) turnStats.moves.push({side: unit.owner===1?'uk':'de', name:unit.name, fromQ:fromH.q, fromR:fromH.r, toQ:dest.q, toR:dest.r, action:'overrun'});
+        if (turnStats) turnStats.moves.push({side: unit.owner===1?'uk':'de', name:unit.name, veteran:unit.veteran||false, kills:unit.kills||0, fromQ:fromH.q, fromR:fromH.r, toQ:dest.q, toR:dest.r, action:'overrun'});
         // Defer removal — overrun combat resolves in Phase 3, which handles destruction naturally
       } else if (!enemyAtDest || enemyAtDest.owner === unit.owner) {
         // Execute move
@@ -3251,17 +3356,17 @@ function resolveTurn() {
           unit.equip = Math.max(0, unit.equip - 1);
           unit.org = Math.max(0, unit.org - 15);
           actTag = '[急行军] -1装 -15组';
-          if (unit.equip <= 0) { removeUnit(unit.id); actTag += ' 💀覆灭'; if (turnStats) turnStats.eliminations.push({side: unit.owner===1?'uk':'de', name: unit.name, killedBy: '急行军损耗', q: unit.q, r: unit.r}); }
+          if (unit.equip <= 0) { var v0=unit.veteran||false,k0=unit.kills||0; removeUnit(unit.id); actTag += ' 💀覆灭'; if (turnStats) turnStats.eliminations.push({side: unit.owner===1?'uk':'de', name: unit.name, veteran:v0,kills:k0, killedBy: '急行军损耗', q: unit.q, r: unit.r}); }
         } else if (act === ACTION_TYPE.MOVE) {
           unit.org = Math.min(unit.maxOrg, unit.org + 5);
           actTag = '[移动] +5组';
         } else if (act === ACTION_TYPE.RAPID_WITHDRAW) {
           unit.org = Math.max(0, unit.org - 25);
           actTag = '[快速撤退] -25组';
-          if (unit.org <= 0) { removeUnit(unit.id); actTag += ' 💀覆灭'; if (turnStats) turnStats.eliminations.push({side: unit.owner===1?'uk':'de', name: unit.name, killedBy: '快速撤退溃散', q: unit.q, r: unit.r}); }
+          if (unit.org <= 0) { var v1=unit.veteran||false,k1=unit.kills||0; removeUnit(unit.id); actTag += ' 💀覆灭'; if (turnStats) turnStats.eliminations.push({side: unit.owner===1?'uk':'de', name: unit.name, veteran:v1,kills:k1, killedBy: '快速撤退溃散', q: unit.q, r: unit.r}); }
         }
         logEvent(`→ ${unit.name} 移动至 (${dest.q},${dest.r}) ${actTag}`);
-        if (turnStats) turnStats.moves.push({side: unit.owner===1?'uk':'de', name:unit.name, fromQ:fromH.q, fromR:fromH.r, toQ:dest.q, toR:dest.r, action:act});
+        if (turnStats) turnStats.moves.push({side: unit.owner===1?'uk':'de', name:unit.name, veteran:unit.veteran||false, kills:unit.kills||0, fromQ:fromH.q, fromR:fromH.r, toQ:dest.q, toR:dest.r, action:act});
       }
     }
   }
@@ -3565,7 +3670,9 @@ function resolveCombat(cr) {
   else if (flankBonus >= 1) bonusTags.push(`夹击+1骰`);
   const bonusStr = bonusTags.length > 0 ? ` [${bonusTags.join(',')}]` : '';
 
-  logEvent(`⚔ ${atkType.icon}${atkUnit.name}(${atkTotal}) vs ${defType.icon}${defUnit.name}(${defTotal}) [${h?h.terrain.name:''}]${bonusStr}`);
+  const atkVetTag = atkUnit.veteran ? '⭐' : (atkUnit.kills>0 ? '⚔'+atkUnit.kills : '');
+  const defVetTag = defUnit.veteran ? '⭐' : (defUnit.kills>0 ? '⚔'+defUnit.kills : '');
+  logEvent(`⚔ ${atkType.icon}${atkVetTag}${atkUnit.name}(${atkTotal}) vs ${defType.icon}${defVetTag}${defUnit.name}(${defTotal}) [${h?h.terrain.name:''}]${bonusStr}`);
 
   let resultTags = [];
   if (equipDmgD > 0) resultTags.push(`守-${equipDmgD}装`);
@@ -3597,11 +3704,12 @@ function resolveCombat(cr) {
       logEvent(`🏴 ${cp.name} 被 ${atkUnit.owner===PLAYER.UK?'英军':'德军'} 占领!`);
       triggerCaptureEffect(cp, atkUnit.owner, prevOwner);
     }
-    // Promotion: attacker becomes veteran after destroying an enemy unit
-    if (!atkUnit.veteran) {
+    // Promotion: attacker becomes veteran after 2 kills
+    atkUnit.kills = (atkUnit.kills || 0) + 1;
+    if (!atkUnit.veteran && atkUnit.kills >= 2) {
       atkUnit.veteran = true;
       resultText += ' ⭐晋升老兵';
-      logEvent(`⭐ ${atkUnit.name} 晋升为老兵! +1攻 +1防 +1移`);
+      logEvent(`⭐ ${atkUnit.name} 历经${atkUnit.kills}场击杀晋升为老兵! +1攻 +1防 +1移`);
     }
   }
   // Attacker destroyed (independent check — both sides can be destroyed in same combat)
@@ -3644,6 +3752,8 @@ function resolveCombat(cr) {
     }
     turnStats.attacks.push({
       side: atkSide, atkName: atkUnit.name, defName: defUnit.name,
+      atkVeteran: atkUnit.veteran || false, defVeteran: defUnit.veteran || false,
+      atkKills: atkUnit.kills || 0, defKills: defUnit.kills || 0,
       atkTotal: atkTotal, defTotal: defTotal,
       result: res.label,
       atkLossEquip: equipDmgA, atkLossOrg: orgDmgA,
@@ -3654,15 +3764,15 @@ function resolveCombat(cr) {
       flankBonus: flankBonus || 0
     });
     if (defKilled) {
-      turnStats.eliminations.push({side: defSide, name: defUnit.name, killedBy: atkUnit.name, q: defUnit.q, r: defUnit.r});
+      turnStats.eliminations.push({side: defSide, name: defUnit.name, veteran: defUnit.veteran||false, kills: defUnit.kills||0, killedBy: atkUnit.name, q: defUnit.q, r: defUnit.r});
       if (cpName) turnStats.cpChanges.push({name: cpName, prevOwner: defSide==='uk'?1:2, newOwner: atkUnit.owner, q: defcp.q, r: defcp.r});
     }
     if (atkKilled) {
-      turnStats.eliminations.push({side: atkSide, name: atkUnit.name, killedBy: defUnit.name, q: atkUnit.q, r: atkUnit.r});
+      turnStats.eliminations.push({side: atkSide, name: atkUnit.name, veteran: atkUnit.veteran||false, kills: atkUnit.kills||0, killedBy: defUnit.name, q: atkUnit.q, r: atkUnit.r});
     }
     // Routs
-    if (resultText.indexOf('守方溃退')>=0) turnStats.routs.push({side: defSide, name: defUnit.name, q: defUnit.q, r: defUnit.r});
-    if (resultText.indexOf('攻方溃退')>=0) turnStats.routs.push({side: atkSide, name: atkUnit.name, q: atkUnit.q, r: atkUnit.r});
+    if (resultText.indexOf('守方溃退')>=0) turnStats.routs.push({side: defSide, name: defUnit.name, veteran: defUnit.veteran||false, kills: defUnit.kills||0, q: defUnit.q, r: defUnit.r});
+    if (resultText.indexOf('攻方溃退')>=0) turnStats.routs.push({side: atkSide, name: atkUnit.name, veteran: atkUnit.veteran||false, kills: atkUnit.kills||0, q: atkUnit.q, r: atkUnit.r});
   }
 }
 
@@ -3690,6 +3800,12 @@ function checkMorale(unit) {
 // ---- ROUT EXECUTION ----
 // Retreat 1-2 hexes away from threatUnit, lose 15 Org, mark routed
 function applyRout(unit, threatUnit) {
+  // Veteran loses status on rout
+  if (unit.veteran) {
+    unit.veteran = false;
+    unit.kills = 0;
+    logEvent(`  💔 ${unit.name} 溃退中丧失老兵资格`);
+  }
   unit.routed = true;
   // Find valid retreat hex farthest from threat
   let retreatHex = null;
@@ -4019,6 +4135,7 @@ function saveGame() {
     turn: currentTurn, phase: currentPhase, player: currentPlayer,
     weather: currentWeather,
     weatherHistory: weatherHistory,
+    turnLogs: turnLogs,
     reinfPoints: reinfPoints,
     unitOrders: unitOrders,
     capturePoints: capturePoints.map(cp=>({q:cp.q, r:cp.r, owner: getHex(cp.q,cp.r)?.owner || cp.startOwner})),
@@ -4035,7 +4152,7 @@ function saveGame() {
       typeId:u.typeId, owner:u.owner, q:u.q, r:u.r,
       name:u.name, equip:u.equip, org:u.org, maxOrg:u.maxOrg, order:u.order,
       hasMoved:u.hasMoved, hasFought:u.hasFought, routed:u.routed,
-      nation: u.nation || null, veteran: u.veteran || false
+      nation: u.nation || null, veteran: u.veteran || false, kills: u.kills || 0
     };
   }
   for (let r=0; r<ROWS; r++)
@@ -4067,6 +4184,7 @@ function loadGame() {
       unit.routed = su.routed || false;
       unit.nation = su.nation || null;
       unit.veteran = su.veteran || false;
+      unit.kills = su.kills || 0;
       unitIdCounter = Math.max(unitIdCounter, parseInt(id.slice(1))+1);
       if (unit.order) unitOrders[id] = unit.order;
     }
@@ -4087,6 +4205,7 @@ function loadGame() {
     currentPlayer = state.player;
     currentWeather = state.weather ?? WEATHER.CLEAR;
     weatherHistory = state.weatherHistory || [];
+    turnLogs = state.turnLogs || [];
     reinfPoints = state.reinfPoints || {1:0,2:0};
     unitOrders = state.unitOrders || {};
     playerCards = state.playerCards || {1:[], 2:[]};
@@ -4113,12 +4232,17 @@ function loadGame() {
 //  KEYBOARD SHORTCUTS
 // ==============================
 document.addEventListener('keydown', function(e) {
-  // Block shortcuts when modal or transition screen is visible
+  // Block shortcuts when modal, transition, or log screen is visible
   const modal = document.getElementById('modal');
   const transition = document.getElementById('transition-screen');
-  if ((modal && modal.style.display !== 'none') || (transition && transition.style.display !== 'none')) {
-    if (e.key === 'Enter' || e.key === ' ') return; // let modal/transition handle these
-    if (e.key === 'Escape') { closeModal(); return; }
+  const logModal = document.getElementById('log-modal');
+  if ((modal && modal.style.display !== 'none') || (transition && transition.style.display !== 'none') || (logModal && logModal.style.display !== 'none')) {
+    if (e.key === 'Enter' || e.key === ' ') return;
+    if (e.key === 'Escape') {
+      if (logModal && logModal.style.display !== 'none') closeLogModal();
+      else closeModal();
+      return;
+    }
     return;
   }
   if (e.key === 'Escape') {
@@ -4134,6 +4258,9 @@ document.addEventListener('keydown', function(e) {
   } else if (e.key === 't' || e.key === 'T') {
     if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
     toggleTerritoryOverlay();
+  } else if (e.key === 'l' || e.key === 'L') {
+    if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+    showLogModal();
   }
 });
 
@@ -4152,6 +4279,8 @@ function initGame() {
   visibleHexes = {1: new Set(), 2: new Set()};
   currentWeather = WEATHER.CLEAR;
   weatherHistory = [];
+  turnLogs = [];
+  eventLog = [];
   calculateSupply();
 
   // Pre-explore all land hexes so terrain is always visible
@@ -4197,6 +4326,7 @@ function startGame(mode) {
   document.getElementById('btn-territory').onclick = toggleTerritoryOverlay;
   document.getElementById('btn-save').onclick = saveGame;
   document.getElementById('btn-load').onclick = loadGame;
+  document.getElementById('btn-log').onclick = showLogModal;
   window.selectUnit = selectUnit;
   window.confirmOrder = confirmOrder;
   window.cancelOrder = cancelOrder;
@@ -4266,6 +4396,7 @@ function startGame(mode) {
     var html = '<div class="ap-unit">';
     html += ut.icon + ' ' + ut.name;
     if (unit.veteran) html += ' <span style="color:#f1c40f;font-size:11px">⭐老兵</span>';
+    else if (unit.kills > 0) html += ' <span style="color:#f39c12;font-size:10px">⚔'+unit.kills+'/2</span>';
     if (unit.nation === 'ita') html += ' <span style="color:#90c040;font-size:9px">🇮🇹意军</span>';
     if (unit.routed) html += ' <span style="color:#e74c3c;font-size:9px">⚠溃退</span>';
     html += ' | 装' + unit.equip + '/' + unit.maxEquip + ' 组' + unit.org + '/' + unit.maxOrg;
@@ -4300,7 +4431,7 @@ function startGame(mode) {
     if (active.length > 0) html += ' <span style="color:#2ecc71;font-size:9px">生效:' + active.map(function(e){return e.cardIcon;}).join('') + '</span>';
     html += '</div>';
     if (hand.length === 0) {
-      html += '<div style="font-size:9px;color:#555">库存空 (部署阶段补给抽卡)</div>';
+      html += '<div style="font-size:9px;color:#555">库存空 (侧边栏兵力点抽卡)</div>';
     } else {
       for (var ci = 0; ci < hand.length; ci++) {
         var c = hand[ci];
